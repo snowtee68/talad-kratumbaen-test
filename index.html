@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#b31217">
+  <meta name="application-name" content="ตลาดกระทุ่มแบน">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ตลาดกระทุ่มแบน">
+  <link rel="manifest" href="manifest.webmanifest?v=0.5.22.131-r1">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=0.5.22.131-r1">
+  <title>ตลาดกระทุ่มแบน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="styles.css?v=0.5.22.131-r1">
+<link rel="stylesheet" href="order.css?v=0.5.20.42-restore">
+<style>
+#adminPanel .admin-control-center{margin-bottom:18px}
+#adminPanel .admin-control-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+#adminPanel .admin-control-title h3{margin:0}
+#adminPanel .admin-control-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#adminPanel .admin-control-btn{min-height:88px;border:1px solid #e4e4e7;background:#fff;border-radius:16px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;text-align:left;font:inherit;cursor:pointer}
+#adminPanel .admin-control-btn .ico{font-size:24px;line-height:1}
+#adminPanel .admin-control-btn b{font-size:14px}
+#adminPanel .admin-control-btn small{font-size:11px;color:#71717a;line-height:1.35}
+#adminPanel .admin-control-btn.active{border-color:#111827;background:#f8fafc;box-shadow:0 0 0 2px rgba(17,24,39,.05)}
+#adminPanel .admin-view-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
+#adminPanel .admin-view-head h3{margin:0}
+#adminPanel .admin-back-home{white-space:nowrap}
+#adminPanel [data-admin-view].hidden{display:none!important}
+#adminPanel .admin-home-note{padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fafafa}
+#adminPanel .admin-coupon-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+#adminPanel .admin-coupon-links button{min-height:72px}
+@media(max-width:760px){#adminPanel .admin-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminPanel .admin-control-btn{min-height:82px}#adminPanel .admin-coupon-links{grid-template-columns:1fr}}
+
+/* Guest header layout — V0.5.22.96: fixed 3-column guest actions */
+body.guest-session .site-header .header-dashboard-nav{
+  display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;padding-top:18px;padding-bottom:18px
+}
+body.guest-session .site-header .brand{justify-self:start}
+body.guest-session .site-header .nav-actions{
+  width:100%;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:stretch;
+  padding:14px;border:1px solid rgba(120,70,55,.14);border-radius:22px;background:rgba(255,255,255,.78);box-shadow:0 10px 28px rgba(72,35,26,.06)
+}
+body.guest-session .site-header .nav-actions>.header-shortcut,
+body.guest-session .site-header .nav-actions>.market-order-nav{
+  min-width:0!important;min-height:104px;padding:12px 8px!important;border-radius:18px!important;display:flex!important;flex-direction:column;justify-content:center;align-items:center;gap:5px;text-align:center;white-space:normal
+}
+body.guest-session .site-header .nav-actions .nav-ico{font-size:27px;line-height:1.1}
+body.guest-session .site-header .nav-actions .nav-label{font-size:15px;font-weight:800;line-height:1.25}
+body.guest-session .site-header .guest-signup-btn small{display:block;font-size:10px;color:#777;line-height:1.2}
+body.guest-session .site-header #guestSignUpBtn{order:1;grid-column:1;grid-row:1}
+body.guest-session .site-header #marketOrdersBtn{order:2;grid-column:2;grid-row:1}
+body.guest-session .site-header #accountBtn{order:3;grid-column:3;grid-row:1}
+body.guest-session .site-header #addShopBtn{
+  order:4;grid-column:1/-1;grid-row:2;min-height:58px!important;border-radius:18px!important;display:flex!important;align-items:center;justify-content:center;gap:8px;font-size:17px;font-weight:800
+}
+body.guest-session .site-header #addShopBtn .nav-ico{font-size:23px}
+body.guest-session .site-header #addShopBtn .nav-label::after{content:'ของคุณ';margin-left:.2em}
+body.guest-session .site-header #riderJoinBtn{
+  order:5;grid-column:1/-1;grid-row:3;min-height:50px!important;border-radius:18px!important;
+  display:flex!important;align-items:center;justify-content:center;gap:8px
+}
+
+body.guest-session .site-header #nearBtn,
+body.guest-session .site-header #favoritesBtn,
+body.guest-session .site-header #missionBtn,
+body.guest-session .site-header #couponWalletBtn,
+body.guest-session .site-header #headerUserName{display:none!important}
+body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
+@media(min-width:760px){
+  body.guest-session .site-header .header-dashboard-nav{grid-template-columns:minmax(260px,.8fr) minmax(520px,1.2fr);align-items:center}
+  body.guest-session .site-header .nav-actions{max-width:720px;justify-self:end}
+}
+@media(max-width:430px){
+  body.guest-session .site-header .nav-actions{padding:10px;gap:8px;border-radius:18px}
+  body.guest-session .site-header .nav-actions>.header-shortcut,body.guest-session .site-header .nav-actions>.market-order-nav{min-height:94px;padding:10px 6px!important;border-radius:16px!important}
+  body.guest-session .site-header .nav-actions .nav-label{font-size:13px}
+  body.guest-session .site-header #addShopBtn{min-height:54px!important}
+}
+</style>
+
+<link rel="stylesheet" href="responsive-ui-v0.5.22.70.css?v=0.5.22.131-r1">
+
+<style id="riderReadyStateStyle">
+.rider-shop-ready{display:inline-block;margin:5px 0 6px;padding:5px 8px;border-radius:999px;background:#e9f8ee;color:#137333;font-size:12px;font-weight:900}
+.rider-shop-preparing{display:inline-block;margin:5px 0 6px;padding:5px 8px;border-radius:999px;background:#fff5db;color:#7a5700;font-size:12px;font-weight:800}
+.rider-stop-ready{border-left:4px solid #2e9b50!important}
+</style>
+</head>
+<body class="guest-session">
+<header class="site-header">
+  <div class="container nav header-dashboard-nav">
+    <a class="brand" href="#top">
+      <span class="logo">ต</span>
+      <span class="brand-copy"><b>ตลาดกระทุ่มแบน</b><small>📍 ศูนย์รวมร้านค้าชุมชน</small></span>
+    </a>
+    <div class="top-account-area" aria-label="บัญชีผู้ใช้">
+      <button id="topGuestSignUpProxy" class="top-signup-proxy" type="button">สมัครสมาชิก</button>
+      <button id="topLoginProxy" class="top-login-proxy" type="button">เข้าสู่ระบบ</button>
+      <button id="topDisplayNameProxy" class="top-display-name-proxy hidden" type="button">👤 <span>บัญชีของฉัน</span></button>
+    </div>
+
+    
+  </div>
+</header>
+
+<main id="top">
+  <section class="market-photo-banner" aria-label="บรรยากาศตลาดกระทุ่มแบน">
+  <img src="assets/krathumbaen-market-banner.jpg?v=0.5.22.131-r1" alt="บรรยากาศริมคลองตลาดกระทุ่มแบน" loading="eager" decoding="async">
+  <div class="market-photo-overlay">
+    <div class="container market-photo-copy">
+      <b>ค้นร้านง่าย</b>
+      <span>ช่วยกันให้ตลาดคึกคัก</span>
+    </div>
+  </div>
+</section>
+
+<section class="home-discovery" aria-label="ค้นหาร้านและหมวดหมู่">
+  <div class="container">
+    <div class="home-search-card">
+      <div class="home-search-row">
+        <span class="home-search-icon">🔎</span>
+        <input id="homeSearchProxy" type="search" placeholder="ค้นหาร้าน อาหาร เครื่องดื่ม หรือบริการ..." autocomplete="off" aria-label="ค้นหาร้าน">
+        <button id="homeSearchBtn" type="button">ค้นหา</button>
+      </div>
+      <div class="home-main-categories" aria-label="หมวดหมู่หลัก">
+        <button type="button" data-category-proxy="อาหาร">🍜 <span>อาหาร</span></button>
+        <button type="button" data-category-proxy="เครื่องดื่ม">🥤 <span>เครื่องดื่ม</span></button>
+        <button type="button" data-category-proxy="แฟชั่น">👕 <span>แฟชั่น</span></button>
+        <button type="button" data-category-proxy="ของใช้">🧺 <span>ของใช้</span></button>
+      </div>
+      <button id="allCategoriesToggle" class="all-categories-toggle" type="button" aria-expanded="false">
+        หมวดหมู่ทั้งหมด <span>⌄</span>
+      </button>
+      <div id="allCategoriesPanel" class="all-categories-panel" hidden></div>
+    </div>
+  </div>
+</section>
+
+<section class="function-shortcuts-section" aria-label="ฟังก์ชันการใช้งาน">
+  <div class="container">
+    <div class="function-shortcuts-title">
+      <b>ฟังก์ชันการใช้งาน</b>
+      <span>ทางลัดที่ใช้บ่อย</span>
+    </div>
+  </div>
+</section>
+<div class="below-banner-actions"><div class="container"><div class="nav-actions">
+      <button id="nearBtn" class="ghost header-shortcut header-near" type="button"><span class="nav-ico">📍</span><span class="nav-label">ร้านใกล้ฉัน</span></button>
+      <button id="favoritesBtn" class="ghost hidden header-shortcut" type="button"><span class="nav-ico">❤️</span><span class="nav-label">ร้านชื่นชอบ</span></button>
+      <button id="missionBtn" class="ghost hidden header-shortcut header-mission" type="button"><span class="nav-ico">🎯</span><span class="nav-label">Mission</span><span id="missionNavCount"></span></button>
+      <button id="accountBtn" class="ghost header-shortcut" type="button"><span class="nav-ico">👤</span><span class="nav-label">เข้าสู่ระบบ</span></button>
+      <button id="guestSignUpBtn" class="ghost header-shortcut guest-signup-btn" type="button"><span class="nav-ico">👤＋</span><span class="nav-label">สมัครสมาชิก</span><small>สร้างบัญชีใหม่</small></button>
+      <button id="addShopBtn" class="primary header-add-shop" type="button"><span class="nav-ico">＋</span><span class="nav-label">เพิ่มร้าน</span></button>
+      <button id="riderJoinBtn" class="ghost header-shortcut" type="button"><span class="nav-ico">🛵</span><span id="riderJoinLabel" class="nav-label">สมัครเป็น Rider</span></button>
+
+      <div id="headerUserName" class="header-user-pill hidden" aria-live="polite"></div>
+    
+      <div class="install-app-wrap function-install-shortcut"><button id="installAppBtn" class="ghost header-shortcut install-shortcut" type="button"><span class="nav-ico">📲</span><span class="nav-label">ติดตั้งแอป</span></button><small id="installAppHint">Android: กดครั้งเดียวเพื่อเพิ่มเป็นแอปบนหน้าจอ</small></div>
+      <a id="supportCenterBtn" class="ghost header-shortcut support-center-btn" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer" aria-label="ศูนย์ช่วยเหลือและสอบถาม">
+        <span class="nav-ico">💬</span><span class="nav-label">ศูนย์ช่วยเหลือ</span><small>สอบถาม / แจ้งปัญหา</small>
+      </a>
+      <button id="aboutProjectBtn" class="ghost header-shortcut about-project-btn" type="button" aria-label="เกี่ยวกับโครงการกระทุ่มแบนไปด้วยกัน"><span class="nav-ico">ℹ️</span><span class="nav-label">เกี่ยวกับเรา</span><small>ที่มา / ผู้จัดทำ</small></button>
+</div></div></div>
+
+
+<section class="hero">
+    <div class="container hero-grid">
+      <div>
+        <span class="eyebrow">ตลาดของคนกระทุ่มแบน</span>
+        <h1>ค้นหาร้านง่าย<br><em>ช่วยกันให้ตลาดคึกคัก</em></h1>
+        <p>รวมร้านอาหาร เครื่องดื่ม แฟชั่น และบริการ พร้อมแผนที่ เบอร์โทร และเส้นทาง</p>
+        <div class="search-box"><span>🔎</span><input id="searchInput" placeholder="ค้นหาชื่อร้าน สินค้า หรือหมวดหมู่"><button id="searchBtn">ค้นหา</button></div>
+        <div id="categoryButtons" class="chips"></div>
+        
+      </div>
+    </div>
+  </section>
+
+
+  <section class="container section marketplace-section">
+    <div class="section-head"><div><span class="eyebrow red">ดีลจากร้านค้า</span><h2>🔥 โปรโมชั่นและโปรที่กำลังจะเริ่ม</h2></div><span>เห็นทันทีว่าเริ่มและสิ้นสุดเมื่อไร</span></div>
+    <div class="promo-mobile-shell">
+      <div id="promotionGrid" class="promo-grid"></div>
+      <div id="promotionSwipeHint" class="promotion-swipe-hint hidden" aria-hidden="true">
+        <span>← เลื่อนดูโปรโมชั่นเพิ่มเติม →</span>
+        <div id="promotionDots" class="promotion-dots" aria-label="ตำแหน่งโปรโมชั่น"></div>
+      </div>
+    </div>
+    <div class="promo-all-wrap"><button id="showAllPromotionsBtn" class="load-more hidden" type="button">ดูโปรโมชั่นทั้งหมด</button></div>
+  </section>
+
+  <section class="recommended-section">
+    <div class="container section">
+      <div class="section-head"><div><span class="eyebrow">คัดสรรสำหรับคุณ</span><h2>⭐ ร้านแนะนำ</h2></div><span>พิจารณาจากคะแนน รีวิว โปรโมชั่น และร้านเด่น</span></div>
+      <div class="recommended-mobile-shell">
+        <div id="recommendedGrid" class="recommended-slider"></div>
+        <div id="recommendedSwipeHint" class="recommended-swipe-hint hidden" aria-hidden="true">
+          <span>← เลื่อนดูร้านแนะนำเพิ่มเติม →</span>
+          <div id="recommendedDots" class="recommended-dots" aria-label="ตำแหน่งร้านแนะนำ"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="shopResultsSection" class="container section">
+    <div class="section-head"><div><span class="eyebrow red">ร้านค้าในตลาด</span><h2>ค้นพบร้านใกล้ตัวคุณ</h2></div><span id="resultCount">กำลังโหลด...</span></div>
+    <div class="shop-toolbar">
+      <div class="quick-filters" aria-label="ตัวกรองร้านค้า">
+        <button id="onlyOpenBtn" type="button" aria-pressed="false">🟢 เปิดอยู่</button>
+        <button id="onlyPromoBtn" type="button" aria-pressed="false">🔥 มีโปรโมชั่น</button>
+      </div>
+      <label class="sort-control">เรียงตาม
+        <select id="shopSort">
+          <option value="recommended">ร้านแนะนำ</option>
+          <option value="rating">คะแนนสูง</option>
+          <option value="newest">ร้านใหม่ล่าสุด</option>
+          <option value="name">ชื่อร้าน ก–ฮ</option>
+          <option value="distance" disabled>ใกล้ฉันที่สุด</option>
+        </select>
+      </label>
+    </div>
+    <div id="notice" class="notice hidden"></div>
+    <div id="shopGrid" class="grid"></div>
+    <nav id="shopPagination" class="shop-pagination hidden" aria-label="หน้าร้านค้า"></nav>
+    <div id="emptyState" class="empty hidden"><div>🔍</div><h3>ยังไม่พบร้านที่ค้นหา</h3><p>ลองเปลี่ยนคำค้น หมวดหมู่ หรือตัวกรอง</p></div>
+  </section>
+
+  <section class="map-section"><div class="container"><div class="map-heading"><div class="map-heading-copy"><span class="eyebrow">แผนที่ร้านค้า</span><h2>กดหมุดเพื่อดูรายละเอียดร้าน</h2><div class="map-published-count" aria-live="polite"><span>ร้านค้าที่เผยแพร่แล้ว</span><strong id="shopCount">0</strong><small>ร้านค้า</small></div><small id="mapResultCount" class="map-result-count"></small></div><button id="locateMapBtn" class="map-location-button" type="button">🔵 ตำแหน่งของฉัน</button></div><div id="mapFilterBar" class="map-filter-bar" aria-label="ตัวกรองหมุดร้านค้า"></div><div class="map-legend"><span><i class="legend-dot red"></i> ร้านทั่วไป</span><span><i class="legend-dot gold"></i> ร้านแนะนำ</span><span><i class="legend-dot promo"></i> มีโปรโมชั่น</span><span><i class="legend-dot blue"></i> ตำแหน่งของคุณ</span></div><div id="map"></div><p class="map-help">จุดสีน้ำเงินคือตำแหน่งปัจจุบันของคุณ การแสดงผลต้องได้รับอนุญาต Location จากอุปกรณ์</p></div></section>
+
+  <section id="dashboard" class="container section hidden">
+    <div class="section-head"><div><span class="eyebrow red">บัญชีของฉัน</span><h2 id="dashboardTitle">ร้านของฉัน</h2></div><button id="signOutBtn" class="danger">ออกจากระบบ</button></div>
+    <section id="profileDisplayNameCard" class="admin-mission-reward profile-display-name-card">
+      <div class="section-head"><div><span class="eyebrow red">โปรไฟล์</span><h3>👤 ชื่อที่ใช้แสดงในระบบ</h3></div><span id="profileNameStatus" class="muted"></span></div>
+      <p class="muted">ชื่อนี้ใช้แทนอีเมลหรือเบอร์โทรในส่วนสาธารณะ เช่น รีวิว โดยไม่เปลี่ยนข้อมูลเข้าสู่ระบบของคุณ</p>
+      <form id="profileDisplayNameForm" class="mission-reward-form">
+        <label>ชื่อที่ต้องการให้แสดง<input name="display_name" type="text" maxlength="50" placeholder="เช่น พี่นัท / เจ๊ภา / วรวุฒิ" required></label>
+        <button type="submit" class="primary">💾 บันทึกชื่อ</button>
+      </form>
+    </section>
+    <div id="adminPanel" class="hidden"><section class="admin-mission-reward"><div class="section-head"><div><span class="eyebrow red">Delivery</span><h3>🛵 ควบคุมระบบ Delivery</h3></div><span id="deliverySystemAdminStatus" class="muted"></span></div><p class="muted">สวิตช์หลักสำหรับออเดอร์ใหม่ของทุกร้าน เมื่อปิด ลูกค้าจะเลือกได้เฉพาะรับเองที่ร้าน โดยค่าการเปิด Delivery รายร้านจะยังถูกเก็บไว้เหมือนเดิม</p><form id="deliverySystemForm" class="mission-reward-form"><label class="check mission-master-toggle"><input name="delivery_enabled" type="checkbox" checked> <b>🛵 เปิดระบบ Delivery ทั้งระบบ</b><small>ปิด = ออเดอร์ใหม่ทั้งหมดบังคับเป็น “รับเองที่ร้าน” และคูปอง Delivery-only จะไม่แสดง</small></label><button type="submit" class="primary">💾 บันทึกการตั้งค่า Delivery</button></form></section><section class="admin-mission-reward"><div class="section-head"><div><span class="eyebrow red">Rider</span><h3>🛵 จัดการ Rider โครงการ</h3></div><div style="display:flex;gap:8px;align-items:center"><span id="riderRegistryStatus" class="muted"></span><button id="adminRiderRefreshBtn" type="button" class="secondary">↻ รีเฟรช</button></div></div><p class="muted">ระบบจะบันทึกชื่อและเบอร์ของ Rider ที่กดรับงาน Delivery ให้อัตโนมัติ และ Admin สามารถเพิ่ม Rider ไว้ล่วงหน้าหรือปิดใช้งานได้</p><h4>คำขอสมัครเป็น Rider จากผู้ใช้</h4>
+<div id="adminRiderApplicantList" style="margin-bottom:18px"><p class="muted">กำลังโหลดคำขอ...</p></div>
+<h4>เพิ่ม Rider โดย Admin</h4>
+<form id="adminRiderForm" class="mission-reward-form" style="margin-bottom:16px"><div class="form-grid"><label>ชื่อ Rider / ชื่อเรียก<input name="rider_name" maxlength="120" placeholder="เช่น พี่เอก Rider ตลาด" required></label><label>เบอร์โทร<input name="rider_phone" inputmode="tel" maxlength="20" placeholder="08xxxxxxxx" required></label></div><button type="submit" class="primary">＋ เพิ่ม Rider ในทะเบียน</button></form><h4>Rider ในระบบ</h4><div id="adminRiderList" style="overflow-x:auto"></div><h4 style="margin-top:18px">งาน Delivery ล่าสุด</h4><p class="muted">แสดง Rider ที่รับงาน เบอร์ติดต่อ เวลาเริ่มรับงาน และสถานะล่าสุด</p><div id="adminRiderJobs" style="overflow-x:auto"></div></section><section class="admin-mission-reward"><div class="section-head"><div><span class="eyebrow red">Mission</span><h3>🎁 ตั้งค่ารางวัล Mission</h3></div><span id="missionRewardAdminStatus" class="muted"></span></div><p class="muted">เปิด/ปิดกิจกรรม Mission ทั้งระบบ และกำหนดรางวัลที่ผู้ใช้จะเห็นเมื่อทำภารกิจครบ</p><form id="missionRewardForm" class="mission-reward-form"><label class="check mission-master-toggle"><input name="mission_active" type="checkbox" checked> <b>🎯 เปิดระบบ Mission</b><small>เมื่อปิด ปุ่ม Mission และ Popup แนะนำกิจกรรมจะไม่แสดงต่อผู้ใช้</small></label><label>ชื่อรางวัล<input name="reward_title" maxlength="120" placeholder="เช่น รับไอศกรีมฟรี 1 โคน"></label><label>รายละเอียดรางวัล<textarea name="reward_detail" rows="3" maxlength="500" placeholder="เช่น รับได้ที่ร้านที่ร่วมรายการ ภายในวันที่..."></textarea></label><label>วิธีรับรางวัล / หมายเหตุ<textarea name="claim_note" rows="2" maxlength="500" placeholder="เช่น แสดงหน้า Mission ที่สำเร็จต่อพนักงาน"></textarea></label><label class="check"><input name="reward_active" type="checkbox"> เปิดแสดงรางวัลนี้ให้ผู้ใช้</label><button type="submit" class="primary">💾 บันทึกการตั้งค่า Mission</button></form></section><section class="analytics-panel"><div class="analytics-head"><div><h3>📊 สถิติการใช้งานเว็บไซต์</h3><p class="muted">นับแบบไม่เก็บ IP หรือข้อมูลส่วนบุคคล • ผู้เข้าชมเป็นค่าประมาณจาก anonymous session</p></div><div class="analytics-range"><button type="button" data-analytics-period="today">วันนี้</button><button type="button" data-analytics-period="7d" class="active">7 วัน</button><button type="button" data-analytics-period="30d">30 วัน</button><button type="button" data-analytics-period="all">ทั้งหมด</button></div></div><p id="analyticsPeriodCaption" class="muted">7 วันปฏิทินล่าสุด</p><div id="analyticsCards" class="analytics-cards"><div class="analytics-loading">กำลังโหลดสถิติ...</div></div><div class="analytics-shop-section"><h4>ร้านที่ถูกเปิดดูมากที่สุด</h4><div id="analyticsTopShops" class="analytics-top-shops"></div></div></section><h3>ร้านที่รออนุมัติ</h3><div id="pendingGrid" class="grid compact"></div><h3>ร้านค้าทั้งหมด (Admin)</h3><p class="muted">แอดมินสามารถแก้ไขข้อมูลร้าน หมวดหมู่ จุดสังเกต พิกัด และช่องทางติดต่อได้ โดยเจ้าของร้านเดิมยังคงเป็นเจ้าของร้าน</p><div id="adminAllGrid" class="grid compact"></div></div>
+    <h3>ร้านที่ฉันดูแล</h3><div id="myShopGrid" class="grid compact"></div>
+  </section>
+</main>
+
+<footer><div class="container support-footer"><div>ตลาดกระทุ่มแบน — ร้านใหม่จะแสดงหลังแอดมินอนุมัติ <span class="version-badge">V0.5.22.131</span></div><a class="support-openchat-link" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer">💬 สอบถาม / แจ้งปัญหาการใช้งาน</a></div></footer>
+
+<nav class="floating-navigation" aria-label="ทางลัดหน้าเว็บ">
+  <button id="floatingBackBtn" type="button" class="floating-nav-button" aria-label="ย้อนกลับ">← <span>กลับ</span></button>
+  <button id="floatingHomeBtn" type="button" class="floating-nav-button home" aria-label="กลับหน้าหลัก">🏠 <span>หน้าหลัก</span></button>
+  <a class="floating-nav-button support" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer" aria-label="สอบถามหรือแจ้งปัญหาการใช้งานผ่าน LINE OpenChat">💬 <span>ช่วยเหลือ</span></a>
+</nav>
+
+
+<div id="termsModal" class="modal hidden"><div class="backdrop" data-close="termsModal"></div><div class="modal-card"><button class="close" data-close="termsModal">×</button>
+<h2>📄 ข้อตกลงและเงื่อนไขการใช้งานระบบ</h2><p class="muted">ฉบับที่ 1.0 · สำหรับระบบตลาดชุมชนและการจัดส่งสินค้า</p>
+<p>“กระทุ่มแบนไปด้วยกัน” จัดทำขึ้นเพื่อเป็นพื้นที่กลางสำหรับเชื่อมโยงร้านค้า ผู้ซื้อ และผู้ให้บริการจัดส่งสินค้าในชุมชน โดยไม่มีค่าธรรมเนียมการใช้งานแพลตฟอร์มในส่วนที่โครงการกำหนด</p>
+<h3>1. การชำระเงิน</h3><p>แพลตฟอร์มไม่ได้ทำหน้าที่รับ เก็บ หรือพักเงินแทนผู้ใช้งาน การชำระค่าสินค้าเป็นการชำระโดยตรงระหว่างผู้ซื้อกับร้านค้า และค่าบริการจัดส่งเป็นการชำระโดยตรงระหว่างผู้ใช้บริการกับผู้ให้บริการจัดส่ง</p>
+<h3>2. สินค้าและการจัดส่ง</h3><p>ร้านค้าเป็นผู้รับผิดชอบต่อสินค้า ราคา คุณภาพ ความถูกต้อง และการจัดเตรียมสินค้า ส่วนผู้ให้บริการจัดส่งเป็นผู้รับผิดชอบต่อการรับและจัดส่งตามงานที่ได้รับ หากเกิดปัญหา ผู้เกี่ยวข้องควรตรวจสอบสาเหตุและประสานแก้ไขร่วมกันตามข้อเท็จจริงของแต่ละกรณี โดยแพลตฟอร์มอาจช่วยอำนวยความสะดวกด้านข้อมูลหรือการประสานงานเท่าที่สามารถดำเนินการได้</p>
+<h3>3. สิ่งของและการใช้งานที่ต้องห้าม</h3><p>ห้ามใช้แพลตฟอร์มเพื่อซื้อขาย รับ ส่ง หรือดำเนินกิจกรรมที่ผิดกฎหมาย รวมถึงสินค้าหรือบริการที่กฎหมายห้าม หากตรวจพบหรือมีเหตุอันควรเชื่อว่ามีการใช้งานโดยมิชอบ แพลตฟอร์มขอสงวนสิทธิ์ระงับการใช้งาน ตรวจสอบข้อมูลที่เกี่ยวข้อง และดำเนินการหรือให้ความร่วมมือกับหน่วยงานที่มีอำนาจตามที่กฎหมายกำหนด</p>
+<h3>4. ข้อมูลส่วนบุคคล</h3><p>ข้อมูลที่จำเป็นต่อการให้บริการ เช่น ชื่อ เบอร์โทรศัพท์ ที่อยู่ หรือข้อมูลจุดรับ–ส่ง จะถูกใช้เพื่อดำเนินการตามวัตถุประสงค์ของบริการ การติดต่อ การจัดส่ง การรักษาความปลอดภัย และการแก้ไขปัญหาที่เกี่ยวข้อง โดยการจัดเก็บ ใช้ และเปิดเผยข้อมูลจะดำเนินการตามนโยบายความเป็นส่วนตัวและกฎหมายที่เกี่ยวข้อง</p>
+<h3>5. บทบาทของแพลตฟอร์ม</h3><p>แพลตฟอร์มทำหน้าที่เป็นพื้นที่เชื่อมโยงผู้ใช้งาน และไม่ได้เป็นผู้จำหน่ายสินค้า ผู้ให้บริการจัดส่ง หรือคู่สัญญาในการซื้อขายและการจัดส่งระหว่างผู้ใช้งาน เว้นแต่ในส่วนที่แพลตฟอร์มดำเนินการเองโดยตรง ทั้งนี้ไม่มีข้อความใดในเงื่อนไขนี้เป็นการยกเว้นความรับผิดที่ไม่อาจยกเว้นได้ตามกฎหมาย</p>
+<h3>6. การยอมรับเงื่อนไข</h3><p>การสมัครสมาชิก การส่งคำสั่งซื้อ การรับงาน หรือการใช้บริการที่เกี่ยวข้อง ถือว่าผู้ใช้งานรับทราบและตกลงปฏิบัติตามข้อตกลง เงื่อนไข และนโยบายที่เกี่ยวข้องของแพลตฟอร์ม</p>
+<button type="button" class="primary" data-close="termsModal">เข้าใจแล้ว</button></div></div>
+<div id="installAppModal" class="modal hidden"><div class="backdrop" data-close="installAppModal"></div><div class="modal-card small install-modal-card"><button class="close" data-close="installAppModal">×</button><h2>📲 ติดตั้ง ตลาดกระทุ่มแบน</h2><div id="installAppInstructions" class="install-app-instructions"></div></div></div>
+
+<div id="favoritesModal" class="modal hidden"><div class="backdrop" data-close="favoritesModal"></div><div class="modal-card"><button class="close" data-close="favoritesModal">×</button><div class="section-head"><div><span class="eyebrow red">บัญชีของฉัน</span><h2>❤️ ร้านชื่นชอบของฉัน</h2></div><span id="favoriteCount"></span></div><div id="favoriteGrid" class="grid compact"></div></div></div>
+
+<div id="riderApplyModal" class="modal hidden">
+  <div class="backdrop" data-close="riderApplyModal"></div>
+  <div class="modal-card">
+    <button class="close" data-close="riderApplyModal">×</button>
+    <div class="section-head"><div><span class="eyebrow red">ร่วมส่งของในชุมชน</span><h2 id="riderApplyTitle">🛵 สมัครเป็น Rider โครงการ</h2></div></div>
+    <div id="riderApplyStatusBox" class="muted" style="margin-bottom:12px"></div>
+    <div id="riderPreApplyInfo">
+      <div class="payment-card" style="padding:16px;line-height:1.65">
+        <h3 style="margin-top:0">📋 รายละเอียดที่ควรรู้ก่อนสมัคร</h3>
+        <p><b>1. การสมัครและการอนุมัติ</b><br>กรอกชื่อ เบอร์โทร และทะเบียนรถตามความเป็นจริง การส่งใบสมัครยังไม่สามารถรับงานได้ทันที ต้องรอ Admin ตรวจสอบและอนุมัติก่อน เมื่อได้รับอนุมัติแล้วจึงเปิดหรือปิดสถานะ “พร้อมรับงาน” ได้ด้วยตนเอง</p>
+        <p><b>2. การรับงาน</b><br>งานใหม่จะแสดงจำนวนร้าน จุดรับ จุดส่ง ระยะทาง ค่าจัดส่งโดยประมาณ และผู้รับผิดชอบชำระค่าจัดส่ง คุณเลือกกดรับหรือไม่รับงานได้โดยสมัครใจ โดยงานจะเป็นสิทธิ์ของ Rider คนแรกที่กดรับสำเร็จ เมื่อรับงานแล้วควรดำเนินงานให้เสร็จ หากทำต่อไม่ได้ควรแจ้งผ่านระบบหรือติดต่อผู้เกี่ยวข้องโดยเร็ว</p>
+        <p><b>3. ขั้นตอนการทำงาน</b><br>รับงาน → เดินทางไปรับสินค้าตามร้าน → อัปเดตสถานะ → ตรวจสอบสินค้าและจำนวนจุดรับ → ส่งสินค้าให้ลูกค้า → แนบภาพหลักฐานส่งมอบ → แจ้งถึงปลายทางและจบงานตามขั้นตอนของระบบ</p>
+        <div class="ready-banner" style="margin:12px 0"><b>💰 4. วิธีคำนวณค่าตอบแทน</b><br>0–2 กม. เริ่มต้น 25 บาท<br>เกิน 2 กม. เพิ่ม 10 บาททุกระยะ 2 กม. หรือเศษของ 2 กม.<br>จุดรับร้านแรกอยู่ในราคาแล้ว จุดรับร้านที่ 2 เป็นต้นไปเพิ่มจุดละ 10 บาท<br>รองรับสูงสุด 5 จุดรับ และระยะทางรวมตามเส้นทางจริงไม่เกิน 5 กม.</div>
+        <p><b>5. การรับเงินค่าจัดส่ง</b><br>ผู้จ่ายอาจเป็นลูกค้าหรือร้านค้าตามที่ระบุในงาน และชำระให้ Rider โดยตรง ระบบไม่ได้รับ เก็บ พัก หรือโอนเงินแทน และปัจจุบันไม่หักค่าธรรมเนียมจากค่าจัดส่ง Rider ควรตรวจสอบผู้จ่ายและจำนวนเงินก่อนรับงาน หากงานถูกยกเลิกก่อนส่งสำเร็จ ระบบยังไม่มีค่าชดเชยอัตโนมัติ เว้นแต่ตกลงกันโดยตรง</p>
+        <p><b>6. ค่าใช้จ่ายของ Rider</b><br>Rider รับผิดชอบค่าน้ำมัน ค่าเดินทาง ค่าบำรุงรักษารถ ค่าโทรศัพท์ อินเทอร์เน็ต อุปกรณ์ขนส่ง และค่าใช้จ่ายอื่นของตนเอง</p>
+        <p><b>7. ความรับผิดชอบของ Rider</b><br>ขับขี่อย่างปลอดภัยและปฏิบัติตามกฎหมาย ตรวจสอบและดูแลสินค้า ติดต่อผู้เกี่ยวข้องเมื่อมีปัญหา อัปเดตสถานะตามจริง ส่งมอบให้ถูกต้อง แนบหลักฐานตามที่กำหนด และไม่นำข้อมูลลูกค้าหรือร้านค้าไปใช้เพื่อวัตถุประสงค์อื่น</p>
+        <p><b>8. สถานะของผู้ให้บริการ</b><br>การเข้าร่วมเป็น Rider โครงการไม่ใช่การเป็นพนักงานประจำ โครงการไม่รับประกันจำนวนงานหรือรายได้ขั้นต่ำ และปัจจุบันไม่ได้จัดให้มีเงินเดือน สวัสดิการ หรือประกันอุบัติเหตุสำหรับ Rider</p>
+        <div class="warning-banner" style="margin:12px 0">การสมัครยังไม่ทำให้รับงานได้ทันที ต้องรอ Admin ตรวจสอบและอนุมัติก่อน</div>
+      </div>
+      <button type="button" id="riderAcknowledgeBtn" class="primary" style="width:100%;margin-top:12px">รับทราบรายละเอียดและสมัครเป็น Rider</button>
+    </div>
+    <form id="riderApplyForm" class="hidden">
+      <label>ชื่อ Rider / ชื่อที่ใช้ติดต่อ<input name="rider_name" maxlength="120" placeholder="เช่น พี่เอก Rider ตลาด" required></label>
+      <label>เบอร์โทร<input name="rider_phone" inputmode="tel" maxlength="20" placeholder="08xxxxxxxx" required></label>
+      <div class="ready-banner" style="margin:10px 0"><b>📍 พื้นที่ให้บริการ</b><br>อำเภอกระทุ่มแบนและพื้นที่ใกล้เคียงตามที่ระบบกำหนด</div>
+      <label class="check"><input name="service_area_consent" type="checkbox" required> <span><b>ยินยอมและรับทราบ</b> ว่าจะรับงานในพื้นที่ให้บริการที่ระบบกำหนด</span></label>
+      <label>ทะเบียนรถ <small class="muted">(ใช้ตรวจสอบโดย Admin ไม่แสดงต่อสาธารณะ)</small><input name="vehicle_plate" maxlength="40" placeholder="เช่น 1กข 1234 สมุทรสาคร" required></label>
+      <label class="check"><input name="rider_terms_consent" type="checkbox" required> <span>ฉันอ่านและรับทราบวิธีรับงาน การคำนวณค่าตอบแทน การรับเงิน ค่าใช้จ่าย และความรับผิดชอบของ Rider แล้ว</span></label>
+      <button type="submit" class="primary">ส่งใบสมัครเป็น Rider</button>
+    </form>
+    <div id="riderApprovedBox" class="hidden">
+      <div class="ready-banner"><b>✅ บัญชี Rider ได้รับอนุมัติแล้ว</b><br>คุณมีสิทธิ์เป็น Rider ในระบบตลาดกระทุ่มแบน</div>
+      <nav class="main-rider-page-tabs" aria-label="เมนู Rider">
+        <button id="mainRiderCurrentTab" type="button" class="main-rider-page-tab active">🛵 งานปัจจุบัน</button>
+        <button id="mainRiderHistoryTab" type="button" class="main-rider-page-tab">📊 ประวัติและรายได้</button>
+      </nav>
+      <div id="mainRiderCurrentPage">
+      <div id="riderApprovedProfileSummary" class="rider-profile-summary"></div>
+      <div id="riderAvailabilityCard" class="rider-availability-card offline">
+        <div>
+          <b id="riderAvailabilityStatus">สถานะ: พักรับงาน</b>
+          <small id="riderAvailabilityHelp">กดเปิดรับงานเพื่อรับการแจ้งเตือนงานใหม่</small>
+        </div>
+        <button type="button" id="riderAvailabilityBtn" class="rider-availability-button offline">🟢 เปิดรับงาน</button>
+      </div>
+      <div class="rider-approved-actions">
+        <p class="muted" style="margin:0 0 8px">หากเบอร์โทร ชื่อที่ใช้ติดต่อ หรือทะเบียนรถเปลี่ยน สามารถแก้ไขข้อมูลได้โดยไม่ต้องสมัครเป็น Rider ใหม่ และสถานะอนุมัติจะยังคงอยู่</p>
+        <button type="button" id="riderEditProfileBtn" class="secondary">✏️ แก้ไขข้อมูล Rider</button>
+      </div>
+      <div class="rider-push-card">
+        <div><b>🔔 แจ้งเตือนงาน Rider ขณะพักหน้าจอ</b><br><small id="riderPushStatus">ตรวจสอบสถานะการแจ้งเตือน...</small></div>
+        <button type="button" id="riderEnablePushBtn" class="primary">เปิดแจ้งเตือนงาน Rider</button>
+      </div>
+      <section class="rider-job-panel">
+        <div class="rider-job-panel-head">
+          <div><b>📦 งาน Rider</b><small>งานใหม่ที่รอรับ และงานของฉัน</small></div>
+          <button id="refreshRiderJobsBtn" type="button" class="secondary">↻ รีเฟรช</button>
+        </div>
+        <div id="riderJobInbox" class="rider-job-inbox"><p class="muted">กำลังโหลดงาน...</p></div>
+      </section>
+      </div>
+      <section id="mainRiderHistoryPage" class="main-rider-history-page hidden">
+        <div class="rider-job-panel-head">
+          <div><b>📊 ประวัติและรายได้</b><small>นับเฉพาะงานที่ส่งสำเร็จ</small></div>
+          <button id="refreshMainRiderHistoryBtn" type="button" class="secondary">↻ รีเฟรช</button>
+        </div>
+        <div id="mainRiderIncomeSummary" class="main-rider-income-grid"></div>
+        <p class="muted main-rider-income-note">ยอดนี้รวมจากค่าจัดส่งที่บันทึกในงานสำเร็จ และผู้จ่ายชำระให้ Rider โดยตรง</p>
+        <div class="main-rider-history-filters">
+          <button type="button" class="main-rider-history-filter active" data-main-rider-history-filter="completed">✅ งานสำเร็จ</button>
+          <button type="button" class="main-rider-history-filter" data-main-rider-history-filter="cancelled">❌ งานยกเลิก</button>
+        </div>
+        <div id="mainRiderHistoryList" class="rider-job-inbox"><p class="muted">กดแท็บเพื่อโหลดประวัติ</p></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="profileNameModal" class="modal hidden">
+  <div class="backdrop" data-close="profileNameModal"></div>
+  <div class="modal-card">
+    <button class="close" data-close="profileNameModal">×</button>
+    <div class="section-head"><div><span class="eyebrow red">บัญชีของฉัน</span><h2>👤 แก้ไขชื่อที่แสดง</h2></div></div>
+    <p class="muted">ชื่อนี้จะแสดงแทน Email/เบอร์โทรในส่วนสาธารณะ เช่น รีวิว</p>
+    <form id="mobileProfileDisplayNameForm">
+      <label>ชื่อที่ต้องการให้แสดง
+        <input name="display_name" type="text" maxlength="50" placeholder="เช่น พี่นัท / เจ๊ภา / วรวุฒิ" required>
+      </label>
+      <button type="submit" class="primary">💾 บันทึกชื่อ</button>
+    </form>
+  </div>
+</div>
+
+<div id="authModal" class="modal hidden"><div class="backdrop" data-close="authModal"></div><div class="modal-card small"><button class="close" data-close="authModal">×</button><h2>เข้าสู่ระบบ / สมัครสมาชิก</h2><p>เลือกเข้าสู่ระบบด้วยอีเมล หรือเบอร์โทรศัพท์</p><form id="authForm"><div class="auth-method-switch"><button type="button" class="auth-method active" data-auth-method="email">📧 อีเมล</button><button type="button" class="auth-method" data-auth-method="phone">📱 เบอร์โทร</button></div><input type="hidden" name="auth_method" value="email"><label id="authEmailLabel">อีเมล<input name="email" type="email" autocomplete="email"></label><label id="authPhoneLabel" class="hidden">เบอร์โทรศัพท์<input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0812345678"></label><div id="authPhoneHelp" class="auth-help hidden">ไม่ใช้ OTP/SMS · ใช้เบอร์โทร + รหัสผ่าน</div><label>ชื่อที่ใช้แสดงในระบบ <small class="muted">(ใช้ตอนสมัครสมาชิก)</small><input name="display_name" type="text" maxlength="50" autocomplete="nickname" placeholder="เช่น พี่นัท / เจ๊ภา / วรวุฒิ"></label><label>รหัสผ่าน<span class="password-field"><input name="password" type="password" minlength="6" required><button type="button" class="password-toggle" data-password-toggle aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">👁️</button></span></label><div id="signupTermsRow" class="auth-help" style="margin:10px 0">
+<label class="check" style="align-items:flex-start"><input id="signupTermsAccepted" type="checkbox" style="margin-top:4px"> <span>สำหรับการสมัครสมาชิก ฉันได้อ่านและยอมรับ <button type="button" id="openTermsBtn" class="text-button" style="display:inline;padding:0">ข้อตกลงและเงื่อนไขการใช้งาน</button></span></label>
+</div>
+<div class="row"><button type="submit" class="primary">เข้าสู่ระบบ</button><button type="button" id="signUpBtn" class="ghost">สมัครสมาชิก</button></div><button type="button" id="forgotPasswordBtn" class="text-button">ลืมรหัสผ่าน</button></form></div></div>
+
+<div id="shopModal" class="modal hidden"><div class="backdrop" data-close="shopModal"></div><div class="modal-card"><button class="close" data-close="shopModal">×</button><h2 id="shopFormTitle">เพิ่มร้านของฉัน</h2><p>ข้อมูลจะรอการตรวจสอบก่อนเผยแพร่</p><form id="shopForm"><input type="hidden" name="id"><div class="form-grid">
+<label>ชื่อร้าน *<input name="name" required></label><label>หมวดหมู่ *<select name="category_id" id="categorySelect" required></select></label>
+<label class="full">รายละเอียดร้าน<textarea name="description" rows="3"></textarea></label><label class="full">ที่อยู่<input name="address"></label>
+<label>โซนตลาด<input name="zone" placeholder="เช่น โซน A"></label><label>เลขล็อก<input name="lock_number" placeholder="เช่น A-12"></label><label>ชั้น<input name="floor" placeholder="เช่น ชั้น 1"></label><label>จุดสังเกต<input name="landmark"></label>
+<label>เบอร์โทร<input name="phone"></label><label>อีเมลร้าน<input name="email" type="email"></label><label>LINE<input name="line"></label><label>Facebook<input name="facebook"></label><label>TikTok<input name="tiktok"></label><label>Instagram<input name="instagram"></label><label class="full">เว็บไซต์<input name="website" type="url"></label>
+<div class="full shop-location-box"><div class="shop-location-head"><div><b>📍 พิกัดร้าน</b><small>ใช้สำหรับแสดงหมุดบนแผนที่และนำทางตรงถึงร้าน แม้ร้านยังไม่มีชื่อใน Google Maps</small></div><button id="useCurrentShopLocationBtn" type="button" class="ghost location-pick-button">📍 ใช้ตำแหน่งปัจจุบันของฉัน</button></div><div class="form-grid location-coordinate-grid"><label>ละติจูด<input name="latitude" type="number" step="any" placeholder="เช่น 13.6549"></label><label>ลองจิจูด<input name="longitude" type="number" step="any" placeholder="เช่น 100.2639"></label></div><small id="shopLocationStatus" class="form-help">แนะนำให้ยืนอยู่ที่หน้าร้านแล้วกด “ใช้ตำแหน่งปัจจุบันของฉัน” หรือกรอกพิกัดเอง หากไม่ระบุ ร้านยังเผยแพร่ได้ แต่จะไม่แสดงหมุดบนแผนที่</small></div>
+<fieldset class="full hours-box"><legend>เวลาเปิด–ปิดรายวัน</legend><div class="toggle-row"><label class="check"><input type="checkbox" name="temporarily_closed"> ปิดร้านชั่วคราว</label><label class="check"><input type="checkbox" name="open_24_hours"> เปิด 24 ชั่วโมงทุกวัน</label></div><div id="hoursRows" class="hours-list"></div></fieldset>
+<fieldset class="full services-box"><legend>บริการและสิ่งอำนวยความสะดวก</legend><div class="check-grid"><label class="check"><input type="checkbox" name="delivery"> มีบริการเดลิเวอรี</label><label class="check"><input type="checkbox" name="lineman"> LINE MAN</label><label class="check"><input type="checkbox" name="grab"> Grab</label><label class="check"><input type="checkbox" name="shopeefood"> ShopeeFood</label><label class="check"><input type="checkbox" name="qr_payment"> รับ QR Payment</label><label class="check"><input type="checkbox" name="card_payment"> รับบัตร</label><label class="check"><input type="checkbox" name="parking"> มีที่จอดรถ</label><label class="check"><input type="checkbox" name="pet_friendly"> สัตว์เลี้ยงเข้าได้</label><label class="check"><input type="checkbox" name="wheelchair_accessible"> รถเข็นเข้าได้</label></div><div class="delivery-url-grid"><label>ลิงก์สั่ง LINE MAN<input name="lineman_url" type="url" placeholder="https://wongn.ai/..."></label><label>ลิงก์สั่ง GrabFood<input name="grab_url" type="url" placeholder="https://r.grab.com/..."></label><label>ลิงก์สั่ง ShopeeFood<input name="shopeefood_url" type="url" placeholder="https://shopee.co.th/universal-link/..."></label></div><small class="form-help">นำลิงก์หน้าร้านจากแอปเดลิเวอรีมาวาง ลูกค้าจะกดสั่งจากหน้าร้านได้ทันที</small></fieldset>
+<label class="full">รูปหน้าปก<input name="cover" type="file" accept="image/*"></label>
+</div><button type="submit" class="primary submit">บันทึกข้อมูลร้าน</button></form></div></div>
+
+
+<div id="shopDetailModal" class="modal hidden"><div class="backdrop" data-close="shopDetailModal"></div><div class="modal-card"><button class="close" data-close="shopDetailModal">×</button><h2 id="detailTitle">รายละเอียดร้าน</h2><div id="detailSummary"></div><div class="review-head"><h3>รีวิวจากลูกค้า</h3><button id="openReviewBtn" class="primary">⭐ เขียนรีวิว</button></div><div id="reviewList" class="review-list"></div></div></div>
+
+<div id="reviewModal" class="modal hidden"><div class="backdrop" data-close="reviewModal"></div><div class="modal-card small"><button class="close" data-close="reviewModal">×</button><h2>รีวิว <span id="reviewShopName"></span></h2><div class="review-modal-existing"><h3>รีวิวจากลูกค้า</h3><div id="reviewModalList" class="review-list"><p>กำลังโหลดรีวิว...</p></div></div><hr class="review-modal-divider"><h3>เขียนรีวิวของคุณ</h3><p>แบ่งปันประสบการณ์จริงเพื่อช่วยคนในชุมชนตัดสินใจ</p><form id="reviewForm"><input id="reviewShopId" name="shop_id" type="hidden"><label>คะแนน<select name="rating" required><option value="5">★★★★★ 5 — ดีมาก</option><option value="4">★★★★☆ 4 — ดี</option><option value="3">★★★☆☆ 3 — ปานกลาง</option><option value="2">★★☆☆☆ 2 — ควรปรับปรุง</option><option value="1">★☆☆☆☆ 1 — ไม่พอใจ</option></select></label><label>ความคิดเห็น<textarea name="comment" rows="5" maxlength="1000" placeholder="เล่าถึงสินค้า บริการ บรรยากาศ หรือสิ่งที่ประทับใจ" required></textarea></label><button type="submit" class="primary submit">ส่งรีวิว</button></form></div></div>
+
+<div id="promotionModal" class="modal hidden"><div class="backdrop" data-close="promotionModal"></div><div class="modal-card small"><button class="close" data-close="promotionModal">×</button><h2 id="promotionFormTitle">เพิ่มโปรโมชั่น</h2><p>ร้าน: <b id="promotionShopName"></b></p><p class="promotion-limit-note">สร้างโปรล่วงหน้าได้ไม่จำกัด แต่ช่วงเวลาใช้งานซ้อนกันได้สูงสุด 3 โปรโมชั่นต่อร้าน</p><form id="promotionForm"><input name="id" type="hidden"><input name="shop_id" type="hidden"><label>หัวข้อโปรโมชั่น<input name="title" maxlength="120" placeholder="เช่น ซื้อ 2 แถม 1" required></label><label>ข้อความเด่น<input name="discount_text" maxlength="40" placeholder="เช่น ลด 20%"></label><label>รายละเอียด<textarea name="description" rows="4" maxlength="1000"></textarea></label><input name="existing_image_url" type="hidden"><label>รูปโปรโมชั่น<input name="promotion_image" type="file" accept="image/jpeg,image/png,image/webp"><small class="form-help"><b>แนะนำขนาด 1200 × 900 px (อัตราส่วน 4:3)</b><br>เลือกรูปจากมือถือหรือคอมพิวเตอร์ได้สูงสุด 20 MB ระบบจะย่อและแปลงเป็น WebP อัตโนมัติก่อนอัปโหลดจริงให้ไม่เกินประมาณ 450 KB</small></label><div id="promotionImagePreview" class="promotion-image-preview"><small>ยังไม่ได้เลือกรูป</small></div><details class="advanced-image-url"><summary>ใช้ลิงก์รูปภาพแทน (ตัวเลือกเสริม)</summary><label>ลิงก์รูปโปรโมชั่น<input name="image_url" type="url" placeholder="https://..."></label></details><div class="form-grid"><label>เริ่มใช้<input name="starts_at" type="datetime-local"></label><label>สิ้นสุด<input name="ends_at" type="datetime-local"></label></div><div class="promotion-options"><label class="check"><input name="active" type="checkbox" checked> เปิดใช้งานโปรโมชั่น</label><label class="check"><input name="featured" type="checkbox"> ปักหมุดเป็นโปรเด่น</label></div><button type="submit" class="primary submit">บันทึกโปรโมชั่น</button></form></div></div>
+
+<div id="managePromotionsModal" class="modal hidden"><div class="backdrop" data-close="managePromotionsModal"></div><div class="modal-card"><button class="close" data-close="managePromotionsModal">×</button><h2>จัดการโปรโมชั่น</h2><p>ร้าน: <b id="managePromotionShopName"></b></p><input id="managePromotionShopId" type="hidden"><div id="ownerPromotionList" class="owner-promotion-list"></div></div></div>
+
+<div id="allPromotionsModal" class="modal hidden"><div class="backdrop" data-close="allPromotionsModal"></div><div class="modal-card promo-modal-card"><button class="close" data-close="allPromotionsModal">×</button><div class="section-head promo-modal-head"><div><span class="eyebrow red">ดีลทั้งหมด</span><h2>🔥 โปรโมชั่นทั้งหมด</h2></div><span id="allPromotionsCount"></span></div><div id="allPromotionsGrid" class="promo-grid all-promotions-grid"></div></div></div>
+<div id="promotionDetailModal" class="modal hidden"><div class="backdrop" data-close="promotionDetailModal"></div><div class="modal-card small promotion-detail-card"><button class="close" data-close="promotionDetailModal">×</button><h2 id="promotionDetailTitle">รายละเอียดโปรโมชั่น</h2><div id="promotionDetailBody"></div></div></div>
+
+<div id="resetPasswordModal" class="modal hidden"><div class="backdrop" data-close="resetPasswordModal"></div><div class="modal-card small"><button class="close" data-close="resetPasswordModal">×</button><h2>ตั้งรหัสผ่านใหม่</h2><p>กรอกรหัสผ่านใหม่อย่างน้อย 6 ตัว แล้วกดบันทึกเพียงครั้งเดียว</p><form id="resetPasswordForm"><label>รหัสผ่านใหม่<span class="password-field"><input name="new_password" type="password" minlength="6" required><button type="button" class="password-toggle" data-password-toggle aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">👁️</button></span></label><label>ยืนยันรหัสผ่านใหม่<span class="password-field"><input name="confirm_password" type="password" minlength="6" required><button type="button" class="password-toggle" data-password-toggle aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">👁️</button></span></label><button type="submit" class="primary submit">บันทึกรหัสผ่านใหม่</button></form></div></div>
+
+<div id="missionWelcomeModal" class="modal hidden" aria-hidden="true">
+  <div class="backdrop" data-close="missionWelcomeModal"></div>
+  <div class="modal-card small mission-welcome-card">
+    <button class="close" data-close="missionWelcomeModal" aria-label="ปิด">×</button>
+    <div class="mission-welcome-hero"><div class="mission-confetti" aria-hidden="true"><i>✨</i><i>🎉</i><i>⭐</i></div><div class="mission-welcome-icon">🎯</div><span class="mission-welcome-kicker">MISSION กระทุ่มแบน</span><h2>ภารกิจวันนี้มาแล้ว!</h2><p>เล่นง่าย ๆ ระหว่างใช้งานตลาด<br><b>ทำครบ มีสิทธิ์รับของรางวัล 🎁</b></p></div>
+    <div id="missionWelcomeReward" class="mission-welcome-reward hidden"></div>
+    <div class="mission-welcome-quests"><span>🔍 สำรวจร้าน</span><span>❤️ เก็บร้านโปรด</span><span>⭐ รีวิวร้าน</span><span>🛍️ อุดหนุนชุมชน</span></div>
+    <div class="mission-welcome-actions"><button id="missionWelcomeStartBtn" class="primary mission-start-cta" type="button">🎯 เริ่มทำ Mission</button><button class="ghost mission-later-btn" type="button" data-close="missionWelcomeModal">ไว้ทีหลัง</button></div>
+    <small class="mission-welcome-note">ระบบนับภารกิจให้อัตโนมัติ ไม่ต้องกดยืนยันเอง</small>
+  </div>
+</div>
+
+<div id="missionModal" class="modal hidden" aria-hidden="true">
+  <div class="backdrop" data-close="missionModal"></div>
+  <div class="modal-card mission-modal-card">
+    <button class="close" data-close="missionModal" aria-label="ปิด">×</button>
+    <div id="missionContent"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+// Reload once when a newly installed service worker takes control.
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+}
+</script>
+<script src="app.js?v=0.5.22.131-r1"></script>
+
+<nav class="unified-app-dock" aria-label="เมนูหลัก">
+  <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
+    <span class="dock-icon">🏠</span><span class="dock-label">หน้าหลัก</span>
+  </button>
+  <button type="button" data-dock-target="marketOrdersBtn" aria-label="ออเดอร์">
+    <span class="dock-icon">📋</span><span class="dock-label">ออเดอร์</span>
+  </button>
+  <button type="button" data-dock-target="couponWalletBtn" aria-label="คูปองของฉัน">
+    <span class="dock-icon">🎟️</span><span class="dock-label">คูปองของฉัน</span>
+  </button>
+  <button type="button" data-dock-target="accountBtn" aria-label="ร้านของฉัน">
+    <span class="dock-icon">🏪</span><span class="dock-label">ร้านของฉัน</span>
+  </button>
+</nav>
+
+<script src="order.js?v=0.5.22.131-r1"></script>
+
+
+<script>
+document.addEventListener('click', function (event) {
+  const home = event.target.closest('[data-dock-action="home"]');
+  if (home) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const proxy = event.target.closest('[data-dock-target]');
+  if (!proxy) return;
+  const target = document.getElementById(proxy.getAttribute('data-dock-target'));
+  if (target) target.click();
+});
+</script>
+
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+
+  function getOriginalSearch(){
+    return $('searchInput') || document.querySelector('input[type="search"]:not(#homeSearchProxy)');
+  }
+  function runHomeSearch(){
+    const proxy=$('homeSearchProxy');
+    const original=getOriginalSearch();
+    if(!proxy||!original) return;
+    original.value=proxy.value;
+    original.dispatchEvent(new Event('input',{bubbles:true}));
+    original.dispatchEvent(new Event('change',{bubbles:true}));
+    const searchBtn=$('searchBtn') || original.closest('form')?.querySelector('button[type="submit"]');
+    if(searchBtn) searchBtn.click();
+    else original.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+  }
+  $('homeSearchBtn')?.addEventListener('click',runHomeSearch);
+  $('homeSearchProxy')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runHomeSearch();}});
+
+  const ALL_MARKET_CATEGORIES=[
+    'อาหาร',
+    'เครื่องดื่ม',
+    'ของหวาน',
+    'ของสด/วัตถุดิบ',
+    'แฟชั่น',
+    'ความงาม/สุขภาพ',
+    'ของใช้',
+    'อุปกรณ์/อิเล็กทรอนิกส์',
+    'สัตว์เลี้ยง',
+    'บริการ',
+    'อื่นๆ'
+  ];
+
+  function categoryButtons(){
+    const box=$('categoryButtons');
+    if(!box) return [];
+    return Array.from(box.querySelectorAll('button'));
+  }
+
+  function normalizedCategoryText(btn){
+    return (btn?.textContent || '')
+      .replace(/\s+/g,' ')
+      .trim()
+      .replace(/^[^ก-๙A-Za-z0-9]+/,'')
+      .trim();
+  }
+
+  function categoryKey(value){
+    return String(value||'')
+      .replace(/^[^\u0E00-\u0E7FA-Za-z0-9]+/,'')
+      .replace(/\s+/g,'')
+      .replace(/[()（）\-–—_.]/g,'')
+      .trim()
+      .toLowerCase();
+  }
+
+  function clickCategory(label,retry=true){
+    const buttons=categoryButtons();
+    const wanted=categoryKey(label);
+    const target=buttons.find(b=>categoryKey(b.textContent)===wanted)
+      || buttons.find(b=>categoryKey(b.textContent).endsWith(wanted));
+
+    if(target){
+      target.click();
+      document.getElementById('shopResultsSection')?.scrollIntoView({behavior:'smooth',block:'start'});
+      return true;
+    }
+
+    // Categories are loaded from Supabase after the page starts.
+    // Retry once instead of using a MutationObserver, so an early tap still works safely.
+    if(retry){
+      window.setTimeout(()=>clickCategory(label,false),350);
+    }
+    return false;
+  }
+
+  document.querySelectorAll('[data-category-proxy]').forEach(btn=>{
+    btn.addEventListener('click',()=>clickCategory(btn.dataset.categoryProxy));
+  });
+
+  const toggle=$('allCategoriesToggle'), panel=$('allCategoriesPanel');
+
+  function buildAllCategories(){
+    if(!panel || panel.dataset.ready) return;
+    const deliveryButton=document.createElement('button');
+    deliveryButton.type='button';
+    deliveryButton.className='delivery-category-button';
+    deliveryButton.textContent='🛵 ร้านที่มี Delivery';
+    deliveryButton.setAttribute('aria-pressed','false');
+    deliveryButton.addEventListener('click',async()=>{
+      const next=deliveryButton.getAttribute('aria-pressed')!=='true';
+      if(typeof window.marketSetDeliveryShopFilter==='function'){
+        await window.marketSetDeliveryShopFilter(next);
+        deliveryButton.setAttribute('aria-pressed',String(next));
+        deliveryButton.classList.toggle('active',next);
+        panel.hidden=true;
+        toggle?.setAttribute('aria-expanded','false');
+      }
+    });
+    panel.appendChild(deliveryButton);
+    ALL_MARKET_CATEGORIES.forEach(label=>{
+      const b=document.createElement('button');
+      b.type='button';
+      b.textContent=label;
+      b.dataset.categoryLabel=label;
+      b.addEventListener('click',()=>{
+        clickCategory(label);
+        panel.hidden=true;
+        toggle?.setAttribute('aria-expanded','false');
+      });
+      panel.appendChild(b);
+    });
+    panel.dataset.ready='1';
+  }
+
+  toggle?.addEventListener('click',()=>{
+    buildAllCategories();
+    panel.hidden=!panel.hidden;
+    toggle.setAttribute('aria-expanded',String(!panel.hidden));
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const signup=$('topGuestSignUpProxy'), login=$('topLoginProxy'), nameBtn=$('topDisplayNameProxy');
+  signup?.addEventListener('click',()=>$('guestSignUpBtn')?.click());
+  login?.addEventListener('click',()=>$('accountBtn')?.click());
+  nameBtn?.addEventListener('click',()=>$('headerUserName')?.click());
+
+  function syncTopAccount(){
+    const originalName=$('headerUserName');
+    const signedIn=originalName && !originalName.classList.contains('hidden') && (originalName.textContent||'').trim();
+    if(signedIn){
+      nameBtn?.classList.remove('hidden');
+      const span=nameBtn?.querySelector('span');
+      if(span) span.textContent=(originalName.textContent||'').trim();
+      signup?.classList.add('hidden');
+      login?.classList.add('hidden');
+    }else{
+      nameBtn?.classList.add('hidden');
+      signup?.classList.remove('hidden');
+      login?.classList.remove('hidden');
+    }
+  }
+  syncTopAccount();
+  setTimeout(syncTopAccount,300);
+  setTimeout(syncTopAccount,1200);
+  document.addEventListener('click',()=>setTimeout(syncTopAccount,80));
+})();
+</script>
+
+
+<div id="aboutProjectModal" class="about-project-modal hidden" aria-hidden="true">
+  <div class="about-project-backdrop" data-about-close></div>
+  <section class="about-project-panel" role="dialog" aria-modal="true" aria-labelledby="aboutProjectTitle">
+    <button class="about-project-close" type="button" aria-label="ปิด" data-about-close>×</button>
+    <div class="about-project-icon">❤️</div>
+    <h2 id="aboutProjectTitle">กระทุ่มแบนไปด้วยกัน</h2>
+    <p class="about-project-lead">พื้นที่เล็ก ๆ ที่อยากช่วยสร้างโอกาสใหม่ ๆ ให้กับชุมชน</p>
+
+    <p>โครงการ <b>กระทุ่มแบนไปด้วยกัน</b> จัดทำขึ้นเพื่อเพิ่มช่องทางและสร้างโอกาสใหม่ ๆ ให้กับร้านค้าในชุมชน ไม่ว่าจะเป็นร้านเล็ก ร้านใหญ่ ร้านเก่าแก่ หรือร้านที่เพิ่งเริ่มต้น</p>
+
+    <p>เราอยากให้พื้นที่แห่งนี้เป็น <b>ศูนย์รวมร้านค้าในกระทุ่มแบน</b> ที่ช่วยให้คนในพื้นที่และลูกค้าค้นหาร้าน ดูสินค้า โปรโมชั่น ติดต่อร้านค้า และเข้าถึงบริการต่าง ๆ ได้สะดวกขึ้น</p>
+
+    <div class="about-project-highlight">
+      <b>แนวคิดในการพัฒนา</b>
+      <span>ทำอย่างไรให้ร้านค้ามีโอกาสมากขึ้น ลูกค้าใช้งานได้สะดวกขึ้น และเกิดประโยชน์กับชุมชนมากที่สุด</span>
+    </div>
+
+    <p>Web App นี้จะค่อย ๆ พัฒนาและเพิ่มฟังก์ชันให้สอดคล้องกับพฤติกรรมของผู้ใช้งานในยุคปัจจุบัน โดยมุ่งเน้นประโยชน์สูงสุดต่อร้านค้า ผู้ซื้อ และชุมชน</p>
+
+    <p>โครงการนี้จัดทำขึ้น <b>โดยไม่มุ่งหวังผลกำไรจากการใช้งานแพลตฟอร์ม</b> แต่หวังให้เป็นอีกหนึ่งเครื่องมือที่ช่วยให้คนในชุมชนเชื่อมถึงกันง่ายขึ้น และเติบโตไปด้วยกัน</p>
+
+    <div class="about-project-maker">
+      <div><small>ผู้จัดทำโครงการ</small><b>ร้าน SNOWTEE สาขาตลาดกระทุ่มแบน</b></div>
+      <div><small>พัฒนา Web App โดย</small><b>คุณ วรวุฒิ ชูศรี</b><span>ผู้บริหารร้าน SNOWTEE สาขาตลาดกระทุ่มแบน</span></div>
+    </div>
+
+    <div class="about-project-highlight" style="margin-top:16px">
+      <b>บทบาทของแพลตฟอร์ม</b>
+      <span>พื้นที่สำหรับเชื่อมโยงร้านค้า ลูกค้า และผู้ให้บริการจัดส่ง (Rider) ในชุมชน</span>
+    </div>
+
+    <p><b>กระทุ่มแบนไปด้วยกัน</b> ทำหน้าที่เป็นพื้นที่สำหรับเชื่อมโยงร้านค้า ลูกค้า และผู้ให้บริการจัดส่ง (Rider) เพื่อช่วยให้การค้นหาร้านค้า การสั่งซื้อ และการเข้าถึงบริการต่าง ๆ ในชุมชนสะดวกขึ้น</p>
+
+    <p>แพลตฟอร์มและผู้จัดทำ <b>ไม่ได้เป็นผู้จำหน่ายสินค้า ผู้ให้บริการจัดส่ง หรือตัวกลางในการรับและถือเงินจากการซื้อขาย</b></p>
+
+    <p>การชำระค่าสินค้าเป็นการชำระ <b>โดยตรงระหว่างลูกค้ากับร้านค้า</b> และค่าบริการจัดส่งเป็นการชำระ <b>โดยตรงระหว่างลูกค้ากับ Rider</b> โดยเงินดังกล่าวไม่ได้ผ่านหรือถูกเก็บไว้โดยแพลตฟอร์มหรือผู้จัดทำ</p>
+
+    <p>ร้านค้าเป็นผู้รับผิดชอบโดยตรงในเรื่องสินค้า ราคา คุณภาพ ความถูกต้อง และการจัดเตรียมสินค้า ส่วน Rider เป็นผู้รับผิดชอบโดยตรงต่อการรับและการจัดส่งสินค้าตามงานที่ได้รับ</p>
+
+    <p>หากเกิดปัญหาเกี่ยวกับสินค้า การชำระเงิน หรือการจัดส่ง ผู้ใช้งานควรติดต่อร้านค้า Rider หรือคู่กรณีที่เกี่ยวข้องโดยตรง แพลตฟอร์มอาจช่วยอำนวยความสะดวกในการตรวจสอบข้อมูลหรือการประสานงานเท่าที่ระบบสามารถดำเนินการได้ แต่ <b>แพลตฟอร์มและผู้จัดทำไม่ได้เป็นคู่สัญญาในการซื้อขายหรือการให้บริการจัดส่งระหว่างผู้ใช้งาน</b></p>
+
+    <p><small>ทั้งนี้ การกำหนดบทบาทดังกล่าวไม่เป็นการยกเว้นความรับผิดของแพลตฟอร์มหรือผู้จัดทำในส่วนที่กฎหมายกำหนดให้ต้องรับผิด</small></p>
+
+    <p class="about-project-ending"><b>กระทุ่มแบนไปด้วยกัน</b><br>เพราะชุมชนที่ดีไม่ได้เกิดจากใครคนใดคนหนึ่ง แต่เกิดจากการที่เราช่วยกันคนละไม้ คนละมือ ❤️</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  const btn=document.getElementById('aboutProjectBtn');
+  const modal=document.getElementById('aboutProjectModal');
+  if(!btn||!modal)return;
+  const open=()=>{
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden','false');
+    document.body.classList.add('about-project-open');
+    setTimeout(()=>modal.querySelector('.about-project-close')?.focus(),0);
+  };
+  const close=()=>{
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden','true');
+    document.body.classList.remove('about-project-open');
+    btn.focus();
+  };
+  btn.addEventListener('click',open);
+  modal.querySelectorAll('[data-about-close]').forEach(el=>el.addEventListener('click',close));
+  document.addEventListener('keydown',ev=>{
+    if(ev.key==='Escape'&&!modal.classList.contains('hidden'))close();
+  });
+})();
+</script>
+
+</body>
+</html>

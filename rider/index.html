@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#9b1c1f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>เรียก Rider / ศูนย์งาน Rider | ตลาดกระทุ่มแบน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=0.5.22.128">
+</head>
+<body>
+<header class="topbar">
+  <div class="container nav">
+    <a class="brand" href="../">← ตลาดกระทุ่มแบน</a>
+    <div class="nav-actions">
+      <button id="accountBtn" class="ghost">เข้าสู่ระบบ</button>
+      <button id="riderModeBtn" class="ghost">🛵 สมัคร/โหมด Rider</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero card">
+    <div>
+      <span class="eyebrow">ระบบ Rider ชุมชน · ตลาดกระทุ่มแบน</span>
+      <h1>🛵 เรียก Rider รับ-ส่งของ</h1>
+      <p>เรียก Rider รับ-ส่งของในชุมชน หรือลงทะเบียนเป็น Rider เพื่อรับงานจากร้านค้าและลูกค้าในระบบ</p><div class="row hero-actions"><button id="heroRiderBtn" type="button" class="primary">🛵 สมัครเป็น Rider / เข้าโหมด Rider</button></div>
+    </div>
+    <div class="rulebox">
+      <b>ค่าบริการโดยประมาณ</b>
+      <span>0–2 กม. 25 บาท · ทุก 2 กม. ถัดไป +10 บาท · จุดรับเพิ่ม +10 บาท/จุด · เส้นทางรวมสูงสุด 5 กม.</span>
+      <small>ระยะทางคำนวณแบบเส้นตรงเพื่อประมาณการ รุ่นจริงสามารถเปลี่ยนสูตรภายหลังได้</small>
+    </div>
+  </section>
+
+  <section id="guestNotice" class="notice">เข้าสู่ระบบเพื่อสร้างงานหรือสมัครเป็น Rider</section>
+
+  <section id="customerPanel" class="section hidden">
+    <div class="section-head">
+      <div><span class="eyebrow">สำหรับลูกค้า / ร้านค้า</span><h2>สร้างงานรับ-ส่งของ</h2></div>
+    </div>
+    <form id="jobForm" class="card form-card">
+      <div class="multi-stop-head">
+        <div>
+          <b>📦 จุดรับสินค้า</b>
+          <p class="muted">เพิ่มได้สูงสุด 5 จุด · ค้นหาร้านในตลาดได้จากชื่อร้าน โดยไม่ต้องกรอกพิกัดเอง</p>
+        </div>
+        <button id="addPickupBtn" type="button" class="ghost">＋ เพิ่มจุดรับ</button>
+      </div>
+
+      <div id="pickupStops" class="pickup-stops"></div>
+
+      <div class="location-block dropoff-block" data-stop-type="dropoff">
+        <div class="location-title"><b>🏠 จุดส่งปลายทาง</b><button type="button" class="location-btn stop-location-btn">📍 ใช้ตำแหน่งปัจจุบัน</button></div>
+        <label>ชื่อจุดส่ง<input class="stop-label" required placeholder="เช่น บ้านลูกค้า / หมู่บ้าน..."></label>
+        <input class="stop-lat" type="hidden"><input class="stop-lng" type="hidden"><input class="stop-shop-id" type="hidden">
+        <div class="location-state">ยังไม่ได้ระบุตำแหน่ง</div>
+        <div class="form-grid two">
+          <label>ชื่อผู้รับ / ผู้ติดต่อ<input class="stop-contact-name" placeholder="เช่น คุณสมชาย"></label>
+          <label>เบอร์โทรผู้รับ<input class="stop-contact-phone" type="tel" inputmode="tel" placeholder="08x-xxx-xxxx"></label>
+        </div>
+        <label>รายละเอียดจุดส่ง / จุดสังเกต<input class="stop-note" placeholder="เช่น บ้านรั้วสีขาว ข้างร้านขายยา"></label>
+      </div>
+
+      <div class="form-grid two">
+        <label>ผู้จ่ายค่าจัดส่ง
+          <select name="payer" required>
+            <option value="caller">ผู้เรียกจ่าย</option>
+            <option value="recipient">ผู้รับปลายทางจ่าย</option>
+          </select>
+        </label>
+        <label>หมายเหตุของงาน<input name="job_note" placeholder="เช่น เป็นของแตกง่าย"></label>
+      </div>
+
+      <div id="farePreview" class="fare-preview">ระบุพิกัดจุดรับและจุดส่งเพื่อคำนวณค่าบริการ</div>
+      <button class="primary big" type="submit">สร้างงานเรียก Rider</button>
+      <p class="muted">ระบบนี้ไม่รับชำระค่าจัดส่งผ่านเว็บ ผู้ที่ระบุไว้ชำระค่าจัดส่งให้ Rider โดยตรงเมื่อส่งงาน</p>
+    </form>
+
+    <div class="section-head"><div><span class="eyebrow">ติดตามงาน</span><h2>งานของฉัน</h2></div><button id="refreshMyJobs" class="ghost">รีเฟรช</button></div>
+    <div id="myJobs" class="job-list"></div>
+  </section>
+
+  <section id="riderPanel" class="section hidden">
+    <div class="section-head"><div><span class="eyebrow">สำหรับ Rider</span><h2>ศูนย์งาน Rider</h2></div></div>
+
+    <div id="riderRegisterCard" class="card hidden">
+      <h3>สมัครเป็น Rider</h3>
+      <div class="notice" style="line-height:1.65;margin-bottom:14px"><b>📋 ก่อนสมัครโปรดทราบ</b><br>เลือกกดรับงานได้ งานจะแสดงจุดรับ จุดส่ง ระยะทางและค่าจัดส่งก่อนรับ<br><b>ค่าจัดส่ง:</b> 0–2 กม. 25 บาท, เกิน 2 กม. เพิ่ม 10 บาททุก 2 กม., จุดรับร้านที่ 2 เป็นต้นไปเพิ่มจุดละ 10 บาท, สูงสุด 5 จุดรับและระยะทางรวมตามเส้นทางจริงไม่เกิน 5 กม.<br>ผู้จ่ายตามที่ระบุในงานชำระให้ Rider โดยตรง Rider รับผิดชอบค่าเดินทาง รถ อุปกรณ์ ความปลอดภัย และการส่งมอบสินค้า การเข้าร่วมไม่ใช่การเป็นพนักงานประจำและไม่รับประกันจำนวนงานหรือรายได้ขั้นต่ำ</div>
+      <form id="riderForm" class="form-grid two">
+        <label>ชื่อที่แสดง<input name="display_name" required></label>
+        <label>เบอร์โทร<input name="phone" required></label>
+        <label>รถ / รุ่น<input name="vehicle_label" placeholder="เช่น Honda Wave สีแดง"></label>
+        <label>ทะเบียนรถ<input name="plate" placeholder="เช่น 1กข 1234"></label>
+        <label style="grid-column:1/-1"><input name="terms_consent" type="checkbox" required> ฉันอ่านและรับทราบรายละเอียดการรับงาน ค่าตอบแทน และความรับผิดชอบแล้ว</label>
+        <button class="primary" type="submit">ส่งใบสมัครเป็น Rider</button>
+      </form>
+      <p class="muted">เพื่อความปลอดภัย บัญชี Rider ต้องได้รับการอนุมัติจากผู้ดูแลระบบก่อนเริ่มรับงาน</p>
+    </div>
+
+    <div id="riderStatusCard" class="card hidden">
+      <div class="rider-status-row">
+        <div><b id="riderName">Rider</b><div id="riderApproval" class="muted"></div></div>
+        <div id="riderAvailability" class="rider-availability">
+          <div>
+            <b id="onlineStatusText">สถานะ: พักรับงาน</b>
+            <small id="onlineStatusHelp">กดเปิดรับงานเพื่อรับการแจ้งเตือนเมื่อมีงานใหม่</small>
+          </div>
+          <button id="onlineToggleBtn" type="button" class="availability-btn offline">🟢 เปิดรับงาน</button>
+          <input id="onlineToggle" type="checkbox" class="hidden" aria-hidden="true" tabindex="-1">
+        </div>
+      </div>
+      <div id="jobAlertControls" class="job-alert-controls hidden">
+        <div>
+          <b id="jobAlertStatus">🔕 ยังไม่ได้เปิดเสียงแจ้งเตือน</b>
+          <small>เมื่อเปิดพร้อมรับงาน ระบบจะเชื่อมต่อ Supabase Realtime และแจ้งงานใหม่ทันทีขณะ Rider Dashboard เชื่อมต่ออยู่</small>
+        </div>
+        <div class="row">
+          <button id="enableJobAlertBtn" type="button" class="primary">🔔 เปิดการแจ้งเตือนงาน</button>
+          <button id="testJobAlertBtn" type="button" class="ghost">🔊 ทดสอบเสียง</button>
+          <button id="disableJobAlertBtn" type="button" class="ghost hidden">🔕 ปิดเสียงแจ้งเตือน</button>
+        </div>
+      </div>
+      <div class="push-notification-box">
+        <div>
+          <b>📲 แจ้งเตือนแม้ไม่ได้เปิดหน้า Rider</b>
+          <small id="pushStatus">กำลังตรวจสอบ Push Notification…</small>
+        </div>
+        <div class="row">
+          <button id="enablePushBtn" type="button" class="primary">🔔 เปิด Push Notification</button>
+          <button id="disablePushBtn" type="button" class="ghost hidden">ปิด Push</button>
+        </div>
+        <small class="muted">iPhone/iPad ต้องเพิ่มหน้า Rider ไปหน้าจอโฮมและเปิดจากไอคอนก่อนจึงอนุญาต Web Push ได้</small>
+      </div>
+    </div>
+
+    <div id="riderWorkArea" class="hidden">
+      <nav class="rider-page-tabs" aria-label="เมนูงาน Rider">
+        <button id="riderCurrentTab" type="button" class="rider-page-tab active">🛵 งานปัจจุบัน</button>
+        <button id="riderHistoryTab" type="button" class="rider-page-tab">📊 ประวัติและรายได้</button>
+      </nav>
+
+      <div id="riderCurrentPage">
+        <div class="section-head"><div><span class="eyebrow">งานใหม่</span><h2>งานที่รอ Rider รับ</h2></div><button id="refreshOpenJobs" class="ghost">รีเฟรช</button></div>
+        <div id="openJobs" class="job-list"></div>
+        <div class="section-head"><div><span class="eyebrow">งานของฉัน</span><h2>งานที่กำลังทำ</h2></div></div>
+        <div id="riderJobs" class="job-list"></div>
+      </div>
+
+      <div id="riderHistoryPage" class="hidden">
+        <div class="section-head"><div><span class="eyebrow">สรุปเฉพาะงานที่ส่งสำเร็จ</span><h2>ประวัติและรายได้</h2></div><button id="refreshRiderHistory" type="button" class="ghost">รีเฟรช</button></div>
+        <div id="riderIncomeSummary" class="rider-income-grid"></div>
+        <p class="muted rider-income-note">ยอดนี้รวมจากค่าจัดส่งของงานที่ระบบบันทึกว่าสำเร็จเท่านั้น และเป็นเงินที่ผู้จ่ายชำระให้ Rider โดยตรง</p>
+        <div class="rider-history-filter" role="tablist" aria-label="ประเภทประวัติงาน">
+          <button type="button" class="rider-history-filter-btn active" data-rider-history-filter="completed">✅ งานสำเร็จ</button>
+          <button type="button" class="rider-history-filter-btn" data-rider-history-filter="cancelled">❌ งานยกเลิก</button>
+        </div>
+        <div id="riderHistoryList" class="job-list"></div>
+      </div>
+    </div>
+
+    <div id="adminRiderArea" class="hidden public-admin-disabled" aria-hidden="true">
+      <div class="section-head"><div><span class="eyebrow">Admin</span><h2>Rider ที่รออนุมัติ</h2></div></div>
+      <div id="pendingRiders" class="job-list"></div>
+      <div class="section-head admin-approved-head"><div><span class="eyebrow">Admin</span><h2>Rider ในระบบ</h2></div><button id="refreshRidersBtn" type="button" class="ghost">รีเฟรช</button></div>
+      <div id="approvedRiders" class="job-list"></div>
+    </div>
+  </section>
+</main>
+
+
+<div id="jobAlertModal" class="modal hidden">
+  <div class="backdrop" data-close="jobAlertModal"></div>
+  <div class="modal-card job-alert-modal-card">
+    <button id="alertCloseBtn" class="close" type="button">×</button>
+    <div class="job-alert-icon">🛵</div>
+    <h2 id="jobAlertTitle">มีงานใหม่</h2>
+    <div id="jobAlertBody" class="job-alert-body"></div>
+    <div class="row alert-actions">
+      <button id="alertViewJobsBtn" class="primary" type="button">ดูงานใหม่</button>
+      <button class="ghost" type="button" data-close="jobAlertModal">🔇 ปิดเสียง</button>
+    </div>
+  </div>
+</div>
+
+<div id="authModal" class="modal hidden">
+  <div class="backdrop" data-close="authModal"></div>
+  <div class="modal-card">
+    <button class="close" data-close="authModal">×</button>
+    <h2>เข้าสู่ระบบ / สมัครสมาชิก</h2>
+    <form id="authForm">
+      <label>อีเมล<input name="email" type="email" required></label>
+      <label>รหัสผ่าน<div class="password-wrap"><input name="password" type="password" minlength="6" required><button type="button" id="showPass">👁️</button></div></label>
+      <div class="row"><button class="primary" type="submit">เข้าสู่ระบบ</button><button class="ghost" id="signUpBtn" type="button">สมัครสมาชิก</button></div>
+    </form>
+  </div>
+</div>
+
+<footer><div class="container">ระบบ Rider ชุมชน · ตลาดกระทุ่มแบน · ชำระค่าจัดส่งให้ Rider โดยตรงตามเงื่อนไขของงาน</div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js?v=0.5.22.128"></script>
+</body>
+</html>
