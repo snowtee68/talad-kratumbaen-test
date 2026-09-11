@@ -320,7 +320,7 @@
       const all=[...sellerOrders.map(o=>({role:'seller',...o})),...customerOrders.map(o=>({role:'customer',...o}))];
       for(const o of all){
         const key=o.role+':'+o.id,prev=orderNotifyState.statuses[key],cur=o.status;
-        // V0.5.22.132: if this signed-in account owns the shop of the same order,
+        // V0.5.22.133: if this signed-in account owns the shop of the same order,
         // do not mirror buyer-side popup events back onto the seller device.
         // The status is still tracked, so real customer notifications on other shops
         // and all server-side Push notifications remain unchanged.
