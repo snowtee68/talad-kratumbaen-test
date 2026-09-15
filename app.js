@@ -3083,6 +3083,15 @@
     const st=$('riderPushStatus'),btn=$('riderEnablePushBtn');
     if(!st||!btn)return;
     try{
+      if(window.marketIsNativeApp?.()){
+        await window.marketDisableWebPushForNativeApp?.({silent:true});
+        st.textContent='✅ Android App ใช้ Native Push (FCM) สำหรับงาน Rider — ไม่ใช้ Web Push ซ้ำ';
+        btn.textContent='✅ Native Push พร้อมใช้งาน';
+        btn.disabled=true;
+        btn.dataset.pushEnabled='true';
+        btn.dataset.pushVerified='true';
+        return {ok:true,reason:'native_app_uses_fcm'};
+      }
       if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
         st.textContent='อุปกรณ์/เบราว์เซอร์นี้ไม่รองรับ Web Push';
         btn.style.display='none';return;
@@ -3156,6 +3165,7 @@
     if(b.disabled)return;
     b.disabled=true;
     try{
+      if(window.marketIsNativeApp?.()){await window.marketDisableWebPushForNativeApp?.({silent:true});return;}
       if(Notification.permission==='granted'&&typeof window.marketEnsurePushSubscription==='function'){
         const state=await window.marketEnsurePushSubscription({repair:true});
         if(state?.ok)return;
