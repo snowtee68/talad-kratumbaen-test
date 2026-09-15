@@ -2349,6 +2349,23 @@
     setTimeout(()=>syncNativePushToken(),0);
   });
 
+  async function deactivateNativePushToken(){
+    if(!db || !session?.user?.id) return;
+    const token=String(window.marketNativeFcmToken||'').trim();
+    if(!token) return;
+    try{
+      const {error}=await db.from('market_native_push_tokens')
+        .update({is_active:false,updated_at:new Date().toISOString()})
+        .eq('fcm_token',token)
+        .eq('user_id',session.user.id);
+      if(error) throw error;
+      console.log('[NativePush] token deactivated before sign-out');
+    }catch(err){
+      console.warn('[NativePush] token deactivate failed',err);
+    }
+  }
+
+
   async function refreshAuth(){
     if(!db){ updateAccountUI(); return; }
     const {data}=await db.auth.getSession(); session=data.session;
@@ -2852,12 +2869,14 @@
         alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
         form.reset();closeModal('resetPasswordModal');
         history.replaceState(null,'',window.location.pathname);
+        await deactivateNativePushToken();
         await db.auth.signOut();session=null;profile=null;updateAccountUI();openModal('authModal');
       }catch(err){alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='บันทึกรหัสผ่านใหม่';}
     });
     $('signOutBtn').addEventListener('click',async()=>{
       if(!db)return;
+      await deactivateNativePushToken();
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
       session=null;profile=null;updateAccountUI();
