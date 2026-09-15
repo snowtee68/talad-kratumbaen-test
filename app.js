@@ -2322,6 +2322,33 @@
     setTimeout(()=>form?.elements?.display_name?.focus(),80);
   }
 
+  async function syncNativePushToken(){
+    if(!db || !session?.user?.id) return;
+    const token=String(window.marketNativeFcmToken||'').trim();
+    if(!token) return;
+    try{
+      const payload={
+        user_id:session.user.id,
+        fcm_token:token,
+        platform:'android',
+        app_id:'com.krathumbaen.together.test',
+        device_name:String(navigator.userAgent||'Android').slice(0,250),
+        is_active:true,
+        updated_at:new Date().toISOString()
+      };
+      const {error}=await db.from('market_native_push_tokens')
+        .upsert(payload,{onConflict:'fcm_token'});
+      if(error) throw error;
+      console.log('[NativePush] token synced for signed-in user');
+    }catch(err){
+      console.warn('[NativePush] token sync failed',err);
+    }
+  }
+
+  window.addEventListener('market:native-push-registration',()=>{
+    setTimeout(()=>syncNativePushToken(),0);
+  });
+
   async function refreshAuth(){
     if(!db){ updateAccountUI(); return; }
     const {data}=await db.auth.getSession(); session=data.session;
@@ -2339,7 +2366,10 @@
     if(myRiderApplication?.status==='approved'&&myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
     await loadFavorites();
     renderShops(); renderRecommended();
-    if(session) await loadDashboard();
+    if(session){
+      await loadDashboard();
+      await syncNativePushToken();
+    }
   }
 
   function updateAccountUI(){
