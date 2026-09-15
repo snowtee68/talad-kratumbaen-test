@@ -1838,6 +1838,14 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
         ${renderSellerOrderSections(orders||[])}
       </section>
     `,true);
+
+    // Native Android alert stops only when the seller Order page is really open.
+    try{
+      if(window.MarketNativeAlert?.stopOrderAlert){
+        window.MarketNativeAlert.stopOrderAlert();
+      }
+    }catch(_e){}
+
     await refreshSellerPushUI();
 
     if(focusOrderId){
