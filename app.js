@@ -3396,83 +3396,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const installBtn = document.getElementById('installAppBtn');
   if(installBtn){
     installBtn.addEventListener('click', async () => {
-      if(isAppStandalone()){
-        refreshInstallButton();
-        return;
-      }
+      const androidExtra = isAndroidDevice() && isLineOrSocialInApp()
+        ? `<p class="install-note">หากกดดาวน์โหลดไม่ได้จาก LINE / Facebook / Instagram ให้เปิดหน้านี้ด้วย Chrome แล้วกดดาวน์โหลดอีกครั้ง</p>
+           <button type="button" class="btn" id="openChromeInstallBtn">เปิดเว็บไซต์ด้วย Chrome</button>`
+        : '';
 
-      // Android opened inside LINE / Facebook / Instagram:
-      // installation is unreliable there, so send the same page to Chrome.
-      if(isAndroidDevice() && isLineOrSocialInApp()){
-        showInstallInstructions(`
-          <p><b>ติดตั้งผ่าน Google Chrome</b></p>
-          <p>LINE / Facebook / Instagram อาจบล็อกการติดตั้งจากเบราว์เซอร์ภายในแอป</p>
-          <button type="button" class="btn primary" id="openChromeInstallBtn">เปิดด้วย Chrome</button>
-          <p class="install-note">ระบบจะพยายามเปิด Chrome ให้อัตโนมัติ หาก Android ไม่อนุญาตให้แตะปุ่มด้านบน หรือเลือก “เปิดในเบราว์เซอร์ภายนอก” จากเมนูของแอป</p>`);
-        setTimeout(()=>openCurrentPageInChrome(),250);
-        return;
-      }
+      showInstallInstructions(`
+        <div class="install-choice-section">
+          <h3>🤖 สำหรับ Android</h3>
+          <p>แนะนำให้ใช้แอป Android เพื่อรับการแจ้งเตือนออเดอร์และงาน Rider ได้เต็มรูปแบบ</p>
+          <a class="btn primary" href="https://github.com/snowtee68/talad-kratumbaen-test/releases/download/v1.0.0/app-release.apk" target="_blank" rel="noopener noreferrer">⬇️ ดาวน์โหลดแอป Android</a>
+          <p class="install-note">เวอร์ชัน v1.0.0 • หลังดาวน์โหลด Android อาจขออนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เนื่องจากขณะนี้ยังติดตั้งโดยตรงจากเว็บไซต์</p>
+          ${androidExtra}
+        </div>
 
-      // Samsung Internet: prefer Chrome to avoid browser-generated APK / Play Protect warnings.
-      if(isAndroidDevice() && isSamsungInternet()){
-        showInstallInstructions(`
-          <p><b>แนะนำติดตั้งผ่าน Google Chrome</b></p>
-          <p>เพื่อหลีกเลี่ยงคำเตือนจาก Play Protect ให้เปิดเว็บไซต์นี้ด้วย Chrome ก่อนติดตั้ง</p>
-          <button type="button" class="btn primary" id="openChromeInstallBtn">เปิดด้วย Chrome</button>`);
-        return;
-      }
+        <hr style="margin:20px 0;border:0;border-top:1px solid #e5e7eb">
 
-      // Native PWA install prompt on supported Android Chrome / Chromium.
-      if(deferredInstallPrompt){
-        const promptEvent=deferredInstallPrompt;
-        deferredInstallPrompt=null;
-        try{
-          await promptEvent.prompt();
-          const choice=await promptEvent.userChoice;
-          if(choice?.outcome==='accepted'){
-            const hint=document.getElementById('installAppHint');
-            if(hint) hint.textContent='ติดตั้ง ตลาดกระทุ่มแบน เรียบร้อยแล้ว';
-          }
-        }catch(err){ console.warn('PWA install prompt failed:',err); }
-        refreshInstallButton();
-        return;
-      }
-
-      // iPhone/iPad: Apple does not expose the Android-style install prompt.
-      if(isIOSDevice()){
-        if(isLineOrSocialInApp()){
-          showInstallInstructions(`
-            <p><b>ติดตั้งบน iPhone / iPad</b></p>
-            <p>ขณะนี้เปิดจาก LINE / Facebook / Instagram</p>
-            <ol>
-              <li>แตะเมนู <b>…</b> ของแอป</li>
-              <li>เลือก <b>เปิดใน Safari</b></li>
-              <li>ใน Safari กด <b>แชร์ ⬆️</b></li>
-              <li>เลือก <b>เพิ่มไปยังหน้าจอโฮม</b> → <b>เพิ่ม</b></li>
-            </ol>`);
-        }else{
-          showInstallInstructions(`
-            <p><b>ติดตั้ง “ตลาดกระทุ่มแบน” บน iPhone / iPad</b></p>
-            <ol>
-              <li>เปิดด้วย <b>Safari</b></li>
-              <li>กด <b>แชร์ ⬆️</b></li>
-              <li>เลือก <b>เพิ่มไปยังหน้าจอโฮม</b></li>
-              <li>กด <b>เพิ่ม</b></li>
-            </ol>
-            <p class="install-note">iOS ไม่อนุญาตให้เว็บไซต์กด Install อัตโนมัติเหมือน Android</p>`);
-        }
-        return;
-      }
-
-      if(isAndroidDevice()){
-        showInstallInstructions(`
-          <p><b>ยังไม่พบคำสั่งติดตั้งจาก Android</b></p>
-          <button type="button" class="btn primary" id="openChromeInstallBtn">เปิดด้วย Chrome</button>
-          <p>หรือใน Chrome แตะ <b>⋮ → ติดตั้งแอป / เพิ่มลงในหน้าจอหลัก</b></p>`);
-        return;
-      }
-
-      showInstallInstructions(`<p><b>เบราว์เซอร์นี้ยังไม่รองรับการติดตั้งโดยตรง</b></p><p>ลองเปิดด้วย Chrome หรือใช้เมนูของเบราว์เซอร์เพื่อเพิ่มเว็บไซต์เป็นแอป</p>`);
+        <div class="install-choice-section">
+          <h3>🍎 สำหรับ iPhone / iPad</h3>
+          <p>ติดตั้งแบบ Web App ไว้บนหน้าจอโฮมได้โดยไม่ต้องดาวน์โหลด APK</p>
+          <ol>
+            <li>เปิดเว็บไซต์นี้ด้วย <b>Safari</b></li>
+            <li>กด <b>แชร์ ⬆️</b></li>
+            <li>เลือก <b>เพิ่มไปยังหน้าจอโฮม</b></li>
+            <li>กด <b>เพิ่ม</b></li>
+          </ol>
+          ${isIOSDevice() && isLineOrSocialInApp()
+            ? '<p class="install-note">ขณะนี้เปิดจากแอปอื่นอยู่ ให้เลือก “เปิดใน Safari” ก่อน แล้วทำตามขั้นตอนด้านบน</p>'
+            : ''}
+        </div>
+      `);
     });
   }
 
