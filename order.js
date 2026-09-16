@@ -78,7 +78,6 @@
 
   async function init(){
     const {data}=await db.auth.getSession();session=data.session;
-    if(isNativeMarketApp())await disableWebPushInsideNativeApp({silent:true});
     injectUI();wire();renderNavState();updateCartBadge();applyOrderAccess();
     if('serviceWorker' in navigator){
       navigator.serviceWorker.addEventListener('message',async ev=>{
@@ -94,7 +93,7 @@
         }catch(err){console.warn('Notification deep link:',err?.message||err)}
       });
     }
-    db.auth.onAuthStateChange(async(_e,s)=>{session=s;if(isNativeMarketApp())await disableWebPushInsideNativeApp({silent:true});renderNavState();applyOrderAccess();stopOrderNotifications();if(canUseOrders()){await refreshProductShops();decorateShopCards();startOrderNotifications();await openOrderDeepLink();}});
+    db.auth.onAuthStateChange(async(_e,s)=>{session=s;renderNavState();applyOrderAccess();stopOrderNotifications();if(canUseOrders()){await refreshProductShops();decorateShopCards();startOrderNotifications();await openOrderDeepLink();}});
     if(canUseOrders()){await refreshProductShops();decorateShopCards();startOrderNotifications();await openOrderDeepLink();}
     new MutationObserver(()=>{if(canUseOrders())decorateShopCards();attachCartToBottomNav();}).observe(document.body,{childList:true,subtree:true});
   }
@@ -618,6 +617,16 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       if(e.target.closest('#enableSellerPushBtn'))return enableSellerPush();
       if(e.target.closest('#disableSellerPushBtn'))return disableSellerPush();
       if(e.target.closest('#testSellerPushBtn'))return testSellerPush();
+      if(e.target.closest('#testSellerNativeAudioBtn')){
+        if(window.MarketNativeAlert?.testOrderAlert)window.MarketNativeAlert.testOrderAlert();
+        else{armOrderNotificationAudio();playOrderNotificationSound();}
+        return;
+      }
+      if(e.target.closest('#stopSellerNativeAudioBtn')){
+        try{if(window.MarketNativeAlert?.stopAlert)window.MarketNativeAlert.stopAlert();else window.MarketNativeAlert?.stopOrderAlert?.();}catch(_e){}
+        stopOrderSoundRepeat();
+        return;
+      }
       const rd=e.target.closest('[data-refund-destination]');if(rd)return openRefundDestination(rd.dataset.refundDestination);
       if(e.target.closest('#saveRefundDestinationBtn'))return saveRefundDestination();
       const rtype=e.target.closest('#refundDestinationType');if(rtype)return renderRefundDestinationFields();
@@ -1196,43 +1205,8 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     return sub;
   }
 
-  // R12: Native Android app uses FCM only. Browser/PWA keeps Web Push.
-  function isNativeMarketApp(){
-    try{
-      if(window.Capacitor?.isNativePlatform?.())return true;
-    }catch(_e){}
-    return Boolean(window.MarketNativeAlert);
-  }
-
-  async function disableWebPushInsideNativeApp({silent=true}={}){
-    if(!isNativeMarketApp())return {ok:false,reason:'not_native_app'};
-    try{
-      const sub=await getOrderPushSubscription();
-      if(!sub)return {ok:true,reason:'no_web_subscription'};
-      if(session?.user?.id){
-        const {error}=await db.from('market_push_subscriptions')
-          .delete().eq('user_id',session.user.id).eq('endpoint',sub.endpoint);
-        if(error&&!silent)throw error;
-        if(error)console.warn('[NativePush] remove Web Push row skipped:',error.message||error);
-      }
-      try{await sub.unsubscribe()}catch(_e){}
-      console.log('[NativePush] Web Push disabled inside native app');
-      return {ok:true,reason:'web_push_disabled'};
-    }catch(err){
-      console.warn('[NativePush] Web Push cleanup failed:',err?.message||err);
-      return {ok:false,reason:'cleanup_failed',error:err?.message||String(err)};
-    }
-  }
-
-  window.marketIsNativeApp=isNativeMarketApp;
-  window.marketDisableWebPushForNativeApp=disableWebPushInsideNativeApp;
-
   async function ensurePushSubscriptionServerSync({repair=true}={}){
     if(!session?.user?.id)return {ok:false,reason:'not_logged_in',sub:null};
-    if(isNativeMarketApp()){
-      await disableWebPushInsideNativeApp({silent:true});
-      return {ok:false,reason:'native_app_uses_fcm',sub:null};
-    }
     if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
       return {ok:false,reason:'unsupported',sub:null};
     }
@@ -1287,7 +1261,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   async function refreshOrderPushUI(){
     const st=document.getElementById('orderPushStatus'),on=document.getElementById('enableOrderPushBtn'),off=document.getElementById('disableOrderPushBtn'),test=document.getElementById('testOrderPushBtn');
     if(!st)return;
-    if(isNativeMarketApp()){await disableWebPushInsideNativeApp({silent:true});st.textContent='✅ Android App ใช้ Native Push (FCM) โดยตรง — ปิด Web Push ซ้ำในแอปแล้ว';if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';return;}
     if(!('serviceWorker' in navigator)||!('PushManager' in window)){st.textContent='อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ Web Push';if(on)on.style.display='none';if(test)test.style.display='none';return;}
     try{
       const perm=Notification.permission;
@@ -1304,7 +1277,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   }
   async function enableOrderPush(){
     if(!session)return requireLogin();
-    if(isNativeMarketApp()){await disableWebPushInsideNativeApp({silent:true});return alert('Android App ใช้ Native Push (FCM) อัตโนมัติ ไม่ต้องเปิด Web Push ซ้ำ');}
     const btn=document.getElementById('enableOrderPushBtn'),st=document.getElementById('orderPushStatus'),old=btn?.textContent||'เปิดการแจ้งเตือนบนมือถือ';
     const step=(msg)=>{if(st)st.textContent=msg;};
     if(btn){btn.disabled=true;btn.textContent='⏳ กำลังเปิดการแจ้งเตือน...';}
@@ -1369,7 +1341,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   async function refreshSellerPushUI(){
     const st=document.getElementById('sellerPushStatus'),on=document.getElementById('enableSellerPushBtn'),off=document.getElementById('disableSellerPushBtn'),test=document.getElementById('testSellerPushBtn');
     if(!st)return;
-    if(isNativeMarketApp()){await disableWebPushInsideNativeApp({silent:true});st.textContent='✅ Android App ใช้ Native Push (FCM) สำหรับแจ้งเตือนออเดอร์ — ปิด Web Push ซ้ำในแอปแล้ว';if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';return;}
     if(!('serviceWorker' in navigator)||!('PushManager' in window)){
       st.textContent='อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ Web Push';
       if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';
@@ -1391,7 +1362,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
 
   async function enableSellerPush(){
     if(!session)return requireLogin();
-    if(isNativeMarketApp()){await disableWebPushInsideNativeApp({silent:true});return alert('Android App ใช้ Native Push (FCM) อัตโนมัติ ไม่ต้องเปิด Web Push ซ้ำ');}
     const btn=document.getElementById('enableSellerPushBtn'),st=document.getElementById('sellerPushStatus'),old=btn?.textContent||'เปิดแจ้งเตือนออเดอร์ร้าน';
     const step=(msg)=>{if(st)st.textContent=msg;};
     if(btn){btn.disabled=true;btn.textContent='⏳ กำลังเปิดการแจ้งเตือน...';}
@@ -1871,6 +1841,8 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
           <button id="enableSellerPushBtn" class="mo-primary">เปิดแจ้งเตือนออเดอร์ร้าน</button>
           <button id="disableSellerPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button>
           <button id="testSellerPushBtn" class="mo-secondary" style="display:none">🔔 ส่งแจ้งเตือนทดสอบ</button>
+          <button id="testSellerNativeAudioBtn" class="mo-primary">🔊 ทดสอบเสียงออเดอร์</button>
+          <button id="stopSellerNativeAudioBtn" class="mo-secondary">⏹ หยุดเสียง</button>
         </div>
         <div class="mo-muted"><small>การเปิด/ปิดเป็นสิทธิ์ของอุปกรณ์และบัญชีนี้ จึงใช้ Push subscription เดียวกับการแจ้งเตือนฝั่งลูกค้าและ Rider บนเครื่องเดียวกัน</small></div>
       </div>

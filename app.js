@@ -173,6 +173,15 @@
           <div><span>ทะเบียนรถ</span><b>${esc(a.vehicle_plate||'-')}</b></div>
         `;
         renderRiderAvailability();
+        // R16.1: local sound test controls for approved Rider. No job/order/push is created.
+        if(approved&&!approved.querySelector('#riderNativeAudioTestBox')){
+          const testBox=document.createElement('div');
+          testBox.id='riderNativeAudioTestBox';
+          testBox.className='payment-card';
+          testBox.style.marginTop='12px';
+          testBox.innerHTML=`<b>🔊 ทดสอบเสียงแจ้งเตือน Rider</b><div class="muted" style="margin-top:4px">ทดสอบเฉพาะเครื่องนี้ ไม่สร้างงาน Rider และไม่ส่งแจ้งเตือนไปหาคนอื่น</div><div class="actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="testRiderNativeAudioBtn" class="primary">🔊 ทดสอบเสียงงาน Rider</button><button type="button" id="stopRiderNativeAudioBtn" class="secondary">⏹ หยุดเสียง</button></div>`;
+          approved.prepend(testBox);
+        }
         showMainRiderPage('current');
         loadRiderJobInbox();
         if(myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
@@ -2337,7 +2346,7 @@
     appId:()=>nativePushAppId(),
     order:()=>{try{window.MarketNativeAlert?.testOrderAlert?.();return true}catch(_err){return false}},
     rider:()=>{try{window.MarketNativeAlert?.testRiderAlert?.();return true}catch(_err){return false}},
-    stop:()=>{try{window.MarketNativeAlert?.stopAlert?.();return true}catch(_err){return false}}
+    stop:()=>{try{if(window.MarketNativeAlert?.stopAlert)window.MarketNativeAlert.stopAlert();else window.MarketNativeAlert?.stopRiderAlert?.();return true}catch(_err){return false}}
   };
 
   async function syncNativePushToken(){
@@ -3073,6 +3082,21 @@
   start();
 
   document.addEventListener('click',e=>{
+    if(e.target.closest?.('#testRiderNativeAudioBtn')){
+      e.preventDefault();
+      if(window.marketIsNativeApp?.()&&window.MarketNativeAlert?.testRiderAlert){
+        window.MarketNativeAlert.testRiderAlert();
+      }else{
+        armRiderAlertAudio();playRiderAlertSound();
+      }
+      return;
+    }
+    if(e.target.closest?.('#stopRiderNativeAudioBtn')){
+      e.preventDefault();
+      try{window.marketNativeAudioTest?.stop?.();window.MarketNativeAlert?.stopRiderAlert?.();}catch(_e){}
+      stopRiderSoundRepeat?.();
+      return;
+    }
     const accept=e.target.closest?.('[data-rider-accept-batch]');
     if(accept){e.preventDefault();acceptRiderJob(accept.dataset.riderAcceptBatch);return;}
     const advance=e.target.closest?.('[data-rider-advance-batch]');
