@@ -2331,6 +2331,15 @@
     return 'com.krathumbaen.together.test';
   }
 
+  // R16: local Native audio test helper. No order is created and no Push is sent.
+  // This is intentionally exposed only as a diagnostic API; normal web/PWA behavior is unchanged.
+  window.marketNativeAudioTest={
+    appId:()=>nativePushAppId(),
+    order:()=>{try{window.MarketNativeAlert?.testOrderAlert?.();return true}catch(_err){return false}},
+    rider:()=>{try{window.MarketNativeAlert?.testRiderAlert?.();return true}catch(_err){return false}},
+    stop:()=>{try{window.MarketNativeAlert?.stopAlert?.();return true}catch(_err){return false}}
+  };
+
   async function syncNativePushToken(){
     if(!db || !session?.user?.id) return;
     const token=String(window.marketNativeFcmToken||'').trim();
