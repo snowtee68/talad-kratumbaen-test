@@ -3084,7 +3084,7 @@
   document.addEventListener('click',e=>{
     if(e.target.closest?.('#testRiderNativeAudioBtn')){
       e.preventDefault();
-      if(window.marketIsNativeApp?.()&&window.MarketNativeAlert?.testRiderAlert){
+      if(window.MarketNativeAlert?.testRiderAlert){
         window.MarketNativeAlert.testRiderAlert();
       }else{
         armRiderAlertAudio();playRiderAlertSound();
