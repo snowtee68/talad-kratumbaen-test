@@ -2322,6 +2322,15 @@
     setTimeout(()=>form?.elements?.display_name?.focus(),80);
   }
 
+  function nativePushAppId(){
+    try{
+      const appId=String(window.MarketNativeAlert?.getAppId?.()||'').trim();
+      if(appId==='com.krathumbaen.together'||appId==='com.krathumbaen.together.test') return appId;
+    }catch(_err){}
+    // Existing TEST Android builds do not expose getAppId(), so keep their current identity.
+    return 'com.krathumbaen.together.test';
+  }
+
   async function syncNativePushToken(){
     if(!db || !session?.user?.id) return;
     const token=String(window.marketNativeFcmToken||'').trim();
@@ -2331,7 +2340,7 @@
         user_id:session.user.id,
         fcm_token:token,
         platform:'android',
-        app_id:'com.krathumbaen.together.test',
+        app_id:nativePushAppId(),
         device_name:String(navigator.userAgent||'Android').slice(0,250),
         is_active:true,
         updated_at:new Date().toISOString()
