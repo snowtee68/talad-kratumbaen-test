@@ -3424,7 +3424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="install-choice-section">
           <h3>🤖 สำหรับ Android</h3>
           <p>แนะนำให้ใช้แอป Android เพื่อรับการแจ้งเตือนออเดอร์และงาน Rider ได้เต็มรูปแบบ</p>
-          <a class="btn primary" href="https://github.com/snowtee68/talad-kratumbaen-test/releases/download/v1.0.1/app-release.apk">⬇️ ดาวน์โหลดแอป Android</a>
+          <a class="btn primary" href="./downloads/app-release.apk">⬇️ ดาวน์โหลดแอป Android</a>
           <p class="install-note">เวอร์ชัน v1.0.1 • หลังดาวน์โหลด Android อาจขออนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เนื่องจากขณะนี้ยังติดตั้งโดยตรงจากเว็บไซต์</p>
           ${androidExtra}
         </div>
