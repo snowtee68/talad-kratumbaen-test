@@ -717,7 +717,7 @@
           <div><b>${esc(a.display_name||'-')}</b> · <a href="tel:${esc(a.phone||'')}">${esc(a.phone||'-')}</a>
           <small class="muted" style="display:block">พื้นที่: ${esc(a.service_area||'-')} · ทะเบียน: ${esc(a.vehicle_plate||'-')}</small>
           <small class="muted" style="display:block">${riderApplicationStatusText(a.status)} · สมัคร ${a.created_at?new Date(a.created_at).toLocaleString('th-TH'):'-'}</small></div>
-          <div>${a.status==='pending'?`<button type="button" class="primary" data-rider-approve="${a.user_id}">✅ อนุมัติ</button> <button type="button" class="danger" data-rider-reject="${a.user_id}">ไม่อนุมัติ</button>`:`<span class="muted">${riderApplicationStatusText(a.status)}</span>`}</div>
+          <div>${a.status==='pending'?`<button type="button" class="primary" data-rider-approve="${a.user_id}">✅ อนุมัติ</button> <button type="button" class="danger" data-rider-reject="${a.user_id}">ไม่อนุมัติ</button>`:a.status==='approved'?`<span class="muted">${riderApplicationStatusText(a.status)}</span> <button type="button" class="danger" data-rider-revoke="${a.user_id}">🚫 ยกเลิกการอนุมัติ</button>`:`<span class="muted">${riderApplicationStatusText(a.status)}</span>`}</div>
         </div>
       </div>`).join(''):'<p class="muted">ยังไม่มีคำขอสมัครเป็น Rider</p>';
       const status=$('riderRegistryStatus');
@@ -745,6 +745,23 @@
       showNotice(approve?'อนุมัติ Rider เรียบร้อยแล้ว และเพิ่มเข้ารายชื่อ Rider ในระบบแล้ว':'อัปเดตคำขอสมัครเป็น Rider แล้ว');
     }catch(err){
       alert('อัปเดตคำขอไม่สำเร็จ: '+(err?.message||err));
+    }
+  }
+
+  async function revokeRiderApproval(userId){
+    if(!db||profile?.role!=='admin')return;
+    const note=prompt('เหตุผลที่ยกเลิกการอนุมัติ Rider (Rider จะเห็นข้อความนี้)')||'';
+    if(!confirm('ยืนยันยกเลิกการอนุมัติ Rider คนนี้?\n\nหลังยกเลิก Rider จะไม่สามารถรับงานใหม่หรือเปิดสถานะพร้อมรับงานได้ และประวัติงานเดิมจะไม่ถูกลบ'))return;
+    try{
+      const {error}=await db.rpc('market_admin_revoke_rider_approval',{
+        p_user_id:userId,p_admin_note:note
+      });
+      if(error)throw error;
+      await loadAdminRiderApplicants();
+      await loadRiderAdminPanel();
+      showNotice('ยกเลิกการอนุมัติ Rider เรียบร้อยแล้ว');
+    }catch(err){
+      alert('ยกเลิกการอนุมัติไม่สำเร็จ: '+(err?.message||err));
     }
   }
 
@@ -2932,8 +2949,10 @@
     $('adminRiderApplicantList')?.addEventListener('click',ev=>{
       const approve=ev.target.closest('[data-rider-approve]');
       const reject=ev.target.closest('[data-rider-reject]');
+      const revoke=ev.target.closest('[data-rider-revoke]');
       if(approve)decideRiderApplication(approve.dataset.riderApprove,true);
       if(reject)decideRiderApplication(reject.dataset.riderReject,false);
+      if(revoke)revokeRiderApproval(revoke.dataset.riderRevoke);
     });
     $('mobileProfileDisplayNameForm')?.addEventListener('submit',async ev=>{
       ev.preventDefault();

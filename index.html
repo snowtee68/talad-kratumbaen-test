@@ -312,7 +312,7 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
         <p><b>1. การสมัครและการอนุมัติ</b><br>กรอกชื่อ เบอร์โทร และทะเบียนรถตามความเป็นจริง การส่งใบสมัครยังไม่สามารถรับงานได้ทันที ต้องรอ Admin ตรวจสอบและอนุมัติก่อน เมื่อได้รับอนุมัติแล้วจึงเปิดหรือปิดสถานะ “พร้อมรับงาน” ได้ด้วยตนเอง</p>
         <p><b>2. การรับงาน</b><br>งานใหม่จะแสดงจำนวนร้าน จุดรับ จุดส่ง ระยะทาง ค่าจัดส่งโดยประมาณ และผู้รับผิดชอบชำระค่าจัดส่ง คุณเลือกกดรับหรือไม่รับงานได้โดยสมัครใจ โดยงานจะเป็นสิทธิ์ของ Rider คนแรกที่กดรับสำเร็จ เมื่อรับงานแล้วควรดำเนินงานให้เสร็จ หากทำต่อไม่ได้ควรแจ้งผ่านระบบหรือติดต่อผู้เกี่ยวข้องโดยเร็ว</p>
         <p><b>3. ขั้นตอนการทำงาน</b><br>รับงาน → เดินทางไปรับสินค้าตามร้าน → อัปเดตสถานะ → ตรวจสอบสินค้าและจำนวนจุดรับ → ส่งสินค้าให้ลูกค้า → แนบภาพหลักฐานส่งมอบ → แจ้งถึงปลายทางและจบงานตามขั้นตอนของระบบ</p>
-        <div class="ready-banner" style="margin:12px 0"><b>💰 4. วิธีคำนวณค่าตอบแทน</b><br>0–2 กม. เริ่มต้น 25 บาท<br>เกิน 2 กม. เพิ่ม 10 บาททุกระยะ 2 กม. หรือเศษของ 2 กม.<br>จุดรับร้านแรกอยู่ในราคาแล้ว จุดรับร้านที่ 2 เป็นต้นไปเพิ่มจุดละ 10 บาท<br>รองรับสูงสุด 5 จุดรับ และระยะทางรวมตามเส้นทางจริงไม่เกิน 5 กม.</div>
+        <div class="ready-banner" style="margin:12px 0"><b>💰 4. วิธีคำนวณค่าตอบแทน</b><br>0–2 กม. เริ่มต้น 25 บาท<br>เกิน 2 กม. เพิ่ม 10 บาททุกระยะ 2 กม. หรือเศษของ 2 กม.<br>จุดรับร้านแรกอยู่ในราคาแล้ว จุดรับร้านที่ 2 เป็นต้นไปเพิ่มจุดละ 10 บาท<br>รองรับสูงสุด 5 จุดรับ และระยะทางรวมตามเส้นทางจริงไม่เกิน 10 กม.</div>
         <p><b>5. การรับเงินค่าจัดส่ง</b><br>ผู้จ่ายอาจเป็นลูกค้าหรือร้านค้าตามที่ระบุในงาน และชำระให้ Rider โดยตรง ระบบไม่ได้รับ เก็บ พัก หรือโอนเงินแทน และปัจจุบันไม่หักค่าธรรมเนียมจากค่าจัดส่ง Rider ควรตรวจสอบผู้จ่ายและจำนวนเงินก่อนรับงาน หากงานถูกยกเลิกก่อนส่งสำเร็จ ระบบยังไม่มีค่าชดเชยอัตโนมัติ เว้นแต่ตกลงกันโดยตรง</p>
         <p><b>6. ค่าใช้จ่ายของ Rider</b><br>Rider รับผิดชอบค่าน้ำมัน ค่าเดินทาง ค่าบำรุงรักษารถ ค่าโทรศัพท์ อินเทอร์เน็ต อุปกรณ์ขนส่ง และค่าใช้จ่ายอื่นของตนเอง</p>
         <p><b>7. ความรับผิดชอบของ Rider</b><br>ขับขี่อย่างปลอดภัยและปฏิบัติตามกฎหมาย ตรวจสอบและดูแลสินค้า ติดต่อผู้เกี่ยวข้องเมื่อมีปัญหา อัปเดตสถานะตามจริง ส่งมอบให้ถูกต้อง แนบหลักฐานตามที่กำหนด และไม่นำข้อมูลลูกค้าหรือร้านค้าไปใช้เพื่อวัตถุประสงค์อื่น</p>
@@ -337,6 +337,13 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
         <button id="mainRiderHistoryTab" type="button" class="main-rider-page-tab">📊 ประวัติและรายได้</button>
       </nav>
       <div id="mainRiderCurrentPage">
+      <section class="rider-job-panel">
+        <div class="rider-job-panel-head">
+          <div><b>📦 งาน Rider</b><small>งานใหม่ที่รอรับ และงานของฉัน</small></div>
+          <button id="refreshRiderJobsBtn" type="button" class="secondary">↻ รีเฟรช</button>
+        </div>
+        <div id="riderJobInbox" class="rider-job-inbox"><p class="muted">กำลังโหลดงาน...</p></div>
+      </section>
       <div id="riderApprovedProfileSummary" class="rider-profile-summary"></div>
       <div id="riderAvailabilityCard" class="rider-availability-card offline">
         <div>
@@ -353,13 +360,6 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
         <div><b>🔔 แจ้งเตือนงาน Rider ขณะพักหน้าจอ</b><br><small id="riderPushStatus">ตรวจสอบสถานะการแจ้งเตือน...</small></div>
         <button type="button" id="riderEnablePushBtn" class="primary">เปิดแจ้งเตือนงาน Rider</button>
       </div>
-      <section class="rider-job-panel">
-        <div class="rider-job-panel-head">
-          <div><b>📦 งาน Rider</b><small>งานใหม่ที่รอรับ และงานของฉัน</small></div>
-          <button id="refreshRiderJobsBtn" type="button" class="secondary">↻ รีเฟรช</button>
-        </div>
-        <div id="riderJobInbox" class="rider-job-inbox"><p class="muted">กำลังโหลดงาน...</p></div>
-      </section>
       </div>
       <section id="mainRiderHistoryPage" class="main-rider-history-page hidden">
         <div class="rider-job-panel-head">
@@ -459,7 +459,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=native-push-test-r1"></script>
-<script src="app.js?v=0.5.22.133-r1"></script>
+<script src="app.js?v=0.5.22.139-r1"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
@@ -476,7 +476,7 @@ if ('serviceWorker' in navigator) {
   </button>
 </nav>
 
-<script src="order.js?v=0.5.22.138-r2"></script>
+<script src="order.js?v=0.5.22.139-r1"></script>
 
 
 <script>
