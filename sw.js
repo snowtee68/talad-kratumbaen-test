@@ -1,10 +1,10 @@
-const CACHE_NAME = 'talad-kratumbaen-v0.5.22.136-r1';
+const CACHE_NAME = 'talad-kratumbaen-v0.5.22.143-r1';
 const IMAGE_CACHE_NAME = 'talad-supabase-public-images-v1';
 const CORE = [
   './',
   './index.html',
   './styles.css',
-  './app.js',
+  './app.js?v=0.5.22.143-r1',
   './manifest.webmanifest',
   './icons/icon-192.png?v=0.5.22.136-r1',
   './icons/icon-512.png?v=0.5.22.136-r1',
