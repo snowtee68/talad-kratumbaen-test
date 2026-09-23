@@ -567,6 +567,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
         }
         return openShopMenu(orderBtn.dataset.marketOrderShop);
       }
+      const detail=e.target.closest('[data-product-detail]');if(detail)return showProductDetail(detail.dataset.productDetail);
       const add=e.target.closest('[data-add-product]');if(add)return addProduct(add.dataset.addProduct);
       if(e.target.closest('#confirmAddConfiguredProduct'))return confirmAddConfiguredProduct();
       if(e.target.closest('#customQtyMinus'))return changeCustomQty(-1);
@@ -804,8 +805,22 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     const catBar=visibleCats.length
       ? `<div class="product-category-tabs">${visibleCats.map((c,i)=>`<button class="${i===0?'active':''}" data-product-category-filter="${esc(c.id)}">${esc(c.name)}</button>`).join('')}${hasUncategorized?'<button data-product-category-filter="uncategorized">อื่น ๆ</button>':''}<button data-product-category-filter="all">ทั้งหมด</button></div>`
       : '';
-    openModal(`<h2 class="mo-title">${esc(shop?.name||'ร้านค้า')}</h2>${notice}${catBar}<div class="product-grid">${(products||[]).map(p=>{const sold=p.sale_status==='sold_out',can=av.ok&&p.sale_status==='available',cardCategory=String(p.category_id||'uncategorized'),showInitially=defaultCategory==='all'||cardCategory===defaultCategory;return `<article class="product-card" data-product-card-category="${esc(cardCategory)}"${showInitially?'':' style="display:none"'}>${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">`:'<div style="aspect-ratio:4/3;background:#f3f3f3;display:grid;place-items:center;font-size:42px">🛍️</div>'}<div class="body"><h4>${esc(p.name)}</h4><p>${esc(p.description||'')}</p><div class="price">${money(p.price)} บาท</div>${sold?'<div class="status-pill">หมดชั่วคราว</div>':''}<button ${can?`data-add-product="${esc(p.id)}"`:'disabled'}>${sold?'สินค้าหมด':av.ok?'+ ใส่ตะกร้า':esc(av.msg||'ยังไม่เปิดรับออเดอร์')}</button></div></article>`}).join('')||'<p>ร้านนี้ยังไม่มีสินค้าที่เปิดขาย</p>'}</div>`,true);
+    openModal(`<h2 class="mo-title">${esc(shop?.name||'ร้านค้า')}</h2>${notice}${catBar}<div class="product-grid">${(products||[]).map(p=>{const sold=p.sale_status==='sold_out',can=av.ok&&p.sale_status==='available',cardCategory=String(p.category_id||'uncategorized'),showInitially=defaultCategory==='all'||cardCategory===defaultCategory;return `<article class="product-card" data-product-card-category="${esc(cardCategory)}"${showInitially?'':' style="display:none"'}>${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">`:'<div style="aspect-ratio:4/3;background:#f3f3f3;display:grid;place-items:center;font-size:42px">🛍️</div>'}<div class="body"><h4>${esc(p.name)}</h4>${String(p.description||'').trim()?`<button type="button" class="product-detail-btn" data-product-detail="${esc(p.id)}">ⓘ รายละเอียด</button>`:''}<div class="price">${money(p.price)} บาท</div>${sold?'<div class="status-pill">หมดชั่วคราว</div>':''}<button ${can?`data-add-product="${esc(p.id)}"`:'disabled'}>${sold?'สินค้าหมด':av.ok?'+ ใส่ตะกร้า':esc(av.msg||'ยังไม่เปิดรับออเดอร์')}</button></div></article>`}).join('')||'<p>ร้านนี้ยังไม่มีสินค้าที่เปิดขาย</p>'}</div>`,true);
   }
+  async function showProductDetail(productId){
+    const {data:p,error}=await db.from('market_products').select('id,name,description,price').eq('id',productId).maybeSingle();
+    if(error||!p)return alert(error?.message||'ไม่พบข้อมูลสินค้า');
+    const description=String(p.description||'').trim();
+    if(!description)return;
+    document.getElementById('productDetailOverlay')?.remove();
+    const overlay=document.createElement('div');
+    overlay.id='productDetailOverlay';
+    overlay.className='product-detail-overlay';
+    overlay.innerHTML=`<div class="product-detail-backdrop" data-close-product-detail></div><section class="product-detail-popup" role="dialog" aria-modal="true" aria-label="รายละเอียดสินค้า"><button type="button" class="product-detail-close" data-close-product-detail aria-label="ปิด">×</button><h3>${esc(p.name)}</h3><div class="product-detail-text">${esc(description).replace(/\n/g,'<br>')}</div><div class="product-detail-price">${money(p.price)} บาท</div><button type="button" class="product-detail-done" data-close-product-detail>ปิด</button></section>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click',e=>{if(e.target.closest('[data-close-product-detail]'))overlay.remove();});
+  }
+
   async function addProduct(productId){
     const {data:p,error}=await db.from('market_products').select('id,shop_id,name,price,image_url,sale_status,shop:market_shops(name)').eq('id',productId).eq('sale_status','available').maybeSingle();
     if(error||!p)return alert(error?.message||'สินค้านี้ไม่พร้อมขาย');
