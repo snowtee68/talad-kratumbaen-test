@@ -222,3 +222,12 @@
   position: relative;
   z-index: 2147483001 !important;
 }
+
+
+/* V0.5.22.147-R5: FIX ONLY actual delivery map picker stacking */
+#deliveryMapPicker.delivery-map-picker {
+  z-index: 2147483647 !important;
+  isolation: isolate;
+}
+#deliveryMapPicker .delivery-map-backdrop { z-index: 0; }
+#deliveryMapPicker .delivery-map-panel { position: relative; z-index: 1; }
