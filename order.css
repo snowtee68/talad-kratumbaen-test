@@ -222,16 +222,3 @@
   position: relative;
   z-index: 2147483001 !important;
 }
-
-
-/* V0.5.22.147-R3: actual Delivery Map Picker must stay above checkout modal */
-#deliveryMapPicker.delivery-map-picker {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483646 !important;
-  display: grid !important;
-  place-items: center !important;
-  isolation: isolate !important;
-}
-#deliveryMapPicker .delivery-map-backdrop { z-index: 0 !important; }
-#deliveryMapPicker .delivery-map-panel { position: relative !important; z-index: 1 !important; }
