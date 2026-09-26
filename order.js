@@ -1017,6 +1017,17 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     // V0.5.22.147-R6: make the map picker a true viewport overlay without relying on cached CSS.
     Object.assign(wrap.style,{position:'fixed',inset:'0',zIndex:'2147483647',display:'grid',placeItems:'center',padding:'14px'});
     wrap.innerHTML=`<div id="deliveryMapBackdrop" class="delivery-map-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,.58);z-index:0"></div><div class="delivery-map-panel" style="position:relative;z-index:1;width:min(720px,100%);background:#fff;border-radius:20px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.35)"><div class="delivery-map-head"><div><b>🗺️ เลือกจุดจัดส่ง</b><div>แตะบนแผนที่หรือลากหมุดไปยังตำแหน่งที่ Rider ต้องไปส่ง</div></div><button type="button" id="deliveryMapCloseBtn" aria-label="ปิด">×</button></div><div id="deliveryPickerMap" class="delivery-picker-map"></div><div class="delivery-map-note">กรุณาตรวจตำแหน่งหมุดให้ตรงกับบ้าน/จุดรับสินค้า ก่อนยืนยัน</div><button type="button" id="deliveryMapConfirmBtn" class="mo-primary delivery-map-confirm">✓ ใช้ตำแหน่งนี้</button></div>`;
+    // V0.5.22.147-R7: Android Capacitor WebView can composite the checkout modal
+    // above a newly appended fixed overlay. Suspend only that modal while the
+    // map picker is open; no checkout state is destroyed.
+    const orderModal=document.getElementById('marketOrderModal');
+    const isNativeAndroid=Boolean(window.Capacitor?.isNativePlatform?.()) &&
+      String(window.Capacitor?.getPlatform?.()||'').toLowerCase()==='android';
+    if(isNativeAndroid&&orderModal&&!orderModal.classList.contains('hidden')){
+      orderModal.dataset.mapPickerSuspended='1';
+      orderModal.style.visibility='hidden';
+      orderModal.style.pointerEvents='none';
+    }
     document.body.appendChild(wrap);
     deliveryPickerMap=L.map('deliveryPickerMap',{zoomControl:true}).setView([lat,lng],hasCurrent?17:14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(deliveryPickerMap);
@@ -1033,6 +1044,12 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   function closeDeliveryMapPicker(){
     if(deliveryPickerMap){deliveryPickerMap.remove();deliveryPickerMap=null;deliveryPickerMarker=null;}
     document.getElementById('deliveryMapPicker')?.remove();
+    const orderModal=document.getElementById('marketOrderModal');
+    if(orderModal?.dataset?.mapPickerSuspended==='1'){
+      delete orderModal.dataset.mapPickerSuspended;
+      orderModal.style.visibility='';
+      orderModal.style.pointerEvents='';
+    }
   }
   function bestPickupRoute(pickups,drop){
     const items=[...(pickups||[])];
