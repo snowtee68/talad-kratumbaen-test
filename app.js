@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  console.info('Talad Krathumbaen Main v0.5.22.133 Usage Optimization loaded');
+  console.info('Talad Krathumbaen Main v5.7.9.1 Pagination Review Fix loaded');
 
   const cfg = window.APP_CONFIG || {};
   const configured = Boolean(
@@ -10,833 +10,7 @@
   const db = configured ? supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
   const DEMO = [{id:'demo',name:'Snowtee ตลาดกระทุ่มแบน',description:'เครื่องดื่ม ไอศกรีมซอฟต์เสิร์ฟ และเบเกอรี่ บรรยากาศริมคลอง',category:{name:'เครื่องดื่ม'},address:'ตลาดกระทุ่มแบน จังหวัดสมุทรสาคร',phone:'0642211876',facebook:'https://facebook.com/snowtee68',line:'snowtee68',latitude:13.6549,longitude:100.2639,status:'approved',featured:true,cover_url:null}];
 
-  const ANALYTICS_EVENTS=new Set(['page_view','shop_view','navigate_click','phone_click','order_click','order_lineman_click','order_grab_click','order_shopee_click']);
-  let analyticsPeriod='7d';
-  function analyticsSessionId(){
-    const key='talad_analytics_session_v1';
-    try{
-      let item=JSON.parse(localStorage.getItem(key)||'null');
-      const now=Date.now();
-      if(!item?.id||!item?.created||now-item.created>24*60*60*1000){item={id:crypto.randomUUID(),created:now};localStorage.setItem(key,JSON.stringify(item));}
-      return item.id;
-    }catch(_){return 'session-'+Math.random().toString(36).slice(2)+Date.now().toString(36);}
-  }
-  async function trackAnalytics(eventType,shopId=null){
-    if(!db||!ANALYTICS_EVENTS.has(eventType))return;
-    try{await db.rpc('track_market_event',{p_event_type:eventType,p_shop_id:shopId||null,p_session_id:analyticsSessionId()});}
-    catch(err){console.debug('Analytics skipped',err?.message||err);}
-  }
-  function analyticsMetricLabel(type){return ({page_view:'เปิดเว็บ',shop_view:'เปิดดูร้าน',navigate_click:'กดนำทาง',phone_click:'กดโทร',order_click:'คลิกช่องทางสั่งซื้อ',order_lineman_click:'LINE MAN',order_grab_click:'Grab',order_shopee_click:'ShopeeFood'})[type]||type;}
-  let globalDeliveryEnabled=true;
-  async function loadGlobalDeliverySetting(){
-    if(!db)return true;
-    try{
-      const {data,error}=await db.rpc('market_get_system_settings');
-      if(error)throw error;
-      const row=Array.isArray(data)?data[0]:data;
-      globalDeliveryEnabled=row?.delivery_enabled!==false;
-      return globalDeliveryEnabled;
-    }catch(err){
-      console.warn('Global delivery setting:',err?.message||err);
-      return true;
-    }
-  }
-  async function loadDeliverySystemAdmin(){
-    if(!db||profile?.role!=='admin')return;
-    const enabled=await loadGlobalDeliverySetting();
-    const form=$('deliverySystemForm'),status=$('deliverySystemAdminStatus');
-    if(form?.elements?.delivery_enabled)form.elements.delivery_enabled.checked=enabled;
-    if(status)status.textContent=enabled?'🟢 Delivery เปิดทั้งระบบ':'⚪ Delivery ปิด — รับเองเท่านั้น';
-  }
-  async function saveDeliverySystemSetting(ev){
-    ev.preventDefault();
-    if(!db||profile?.role!=='admin')return alert('เฉพาะ Admin เท่านั้น');
-    const enabled=Boolean(ev.currentTarget?.elements?.delivery_enabled?.checked);
-    const msg=enabled?'เปิดระบบ Delivery ทั้งระบบใช่หรือไม่?':'ปิด Delivery สำหรับออเดอร์ใหม่ทั้งหมด และให้ลูกค้าเลือกรับเองที่ร้านเท่านั้นใช่หรือไม่?';
-    if(!confirm(msg))return;
-    try{
-      const {data,error}=await db.rpc('market_admin_set_delivery_enabled',{p_enabled:enabled});
-      if(error)throw error;
-      globalDeliveryEnabled=data!==false;
-      await loadDeliverySystemAdmin();
-      showNotice(globalDeliveryEnabled?'เปิดระบบ Delivery แล้ว':'ปิดระบบ Delivery แล้ว — ออเดอร์ใหม่จะเป็นรับเองเท่านั้น');
-    }catch(err){
-      alert('บันทึกการตั้งค่า Delivery ไม่สำเร็จ: '+(err?.message||err));
-    }
-  }
-
-
-
-  let myRiderApplication=null;
-  let myRiderOnline=false;
-
-  function riderApplicationStatusText(status){
-    return ({pending:'⏳ รอตรวจสอบ',approved:'✅ อนุมัติแล้ว',rejected:'❌ ไม่ผ่านการอนุมัติ'})[status]||'ยังไม่ได้สมัคร';
-  }
-
-  async function loadMyRiderApplication(){
-    myRiderApplication=null;
-    myRiderOnline=false;
-    if(!db||!session){
-      updateRiderJoinButton();
-      return null;
-    }
-    try{
-      const {data,error}=await db.rpc('market_my_rider_application');
-      if(error)throw error;
-      myRiderApplication=data&&typeof data==='object'&&!Array.isArray(data)&&data.status?data:null;
-      if(myRiderApplication?.status==='approved'){
-        const {data:riderProfile,error:profileError}=await db.rpc('market_ensure_my_rider_profile');
-        if(profileError)console.warn('rider availability sync skipped',profileError);
-        else myRiderOnline=riderProfile?.online===true;
-      }
-    }catch(err){
-      console.warn('load rider application skipped',err);
-    }
-    updateRiderJoinButton();
-    return myRiderApplication;
-  }
-
-  function updateRiderJoinButton(){
-    const btn=$('riderJoinBtn'),label=$('riderJoinLabel');
-    if(!btn||!label)return;
-    const st=myRiderApplication?.status;
-    label.textContent=st==='approved'?'งาน Rider':st==='pending'?'รอตรวจสอบใบสมัคร Rider':st==='rejected'?'สมัครเป็น Rider โครงการ':'สมัครเป็น Rider โครงการ';
-    btn.title=st==='approved'?'บัญชี Rider ของฉัน':st==='pending'?'ดูสถานะคำขอสมัครเป็น Rider':'สมัครเป็น Rider ส่งของ';
-  }
-
-  function renderRiderAvailability(){
-    const card=$('riderAvailabilityCard'),btn=$('riderAvailabilityBtn');
-    const status=$('riderAvailabilityStatus'),help=$('riderAvailabilityHelp');
-    if(!card||!btn)return;
-    card.classList.toggle('online',myRiderOnline);
-    card.classList.toggle('offline',!myRiderOnline);
-    btn.classList.toggle('online',myRiderOnline);
-    btn.classList.toggle('offline',!myRiderOnline);
-    btn.textContent=myRiderOnline?'⏸️ พักรับงาน':'🟢 เปิดรับงาน';
-    if(status)status.textContent=myRiderOnline?'สถานะ: พร้อมรับงาน':'สถานะ: พักรับงาน';
-    if(help)help.textContent=myRiderOnline
-      ?'ระบบจะแจ้งเตือนเมื่อมีงานใหม่ กดพักรับงานเมื่อต้องการหยุดรับงาน'
-      :'เมื่อพักรับงาน ระบบจะไม่ส่ง Push หรือเสียงแจ้งงานใหม่ให้บัญชีนี้';
-  }
-
-  async function toggleMainRiderAvailability(){
-    if(!session||myRiderApplication?.status!=='approved')return alert('บัญชี Rider ต้องได้รับการอนุมัติก่อน');
-    const btn=$('riderAvailabilityBtn');
-    const next=!myRiderOnline;
-    if(btn)btn.disabled=true;
-    try{
-      const {error}=await db.rpc('market_set_my_rider_online',{p_online:next});
-      if(error)throw error;
-      myRiderOnline=next;
-      renderRiderAvailability();
-      if(myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
-      showNotice(myRiderOnline?'🟢 เปิดรับงานแล้ว ระบบจะแจ้งเมื่อมีงานใหม่':'⏸️ พักรับงานแล้ว ระบบจะหยุดแจ้งงานใหม่');
-    }catch(err){
-      alert('เปลี่ยนสถานะรับงานไม่สำเร็จ: '+(err?.message||err));
-    }finally{
-      if(btn)btn.disabled=false;
-    }
-  }
-
-  function fillRiderApplicationModal(){
-    const form=$('riderApplyForm'),status=$('riderApplyStatusBox'),approved=$('riderApprovedBox'),title=$('riderApplyTitle'),preInfo=$('riderPreApplyInfo');
-    if(!form)return;
-    const a=myRiderApplication;
-    form.dataset.mode='apply';
-    form.classList.add('hidden');
-    preInfo?.classList.remove('hidden');
-    approved?.classList.add('hidden');
-
-    if(a){
-      form.elements.rider_name.value=a.display_name||currentDisplayName()||'';
-      form.elements.rider_phone.value=a.phone||'';
-      if(form.elements.service_area_consent)form.elements.service_area_consent.checked=Boolean(a.service_area);
-      form.elements.vehicle_plate.value=a.vehicle_plate||'';
-      if(status)status.innerHTML=`สถานะปัจจุบัน: <b>${riderApplicationStatusText(a.status)}</b>${a.admin_note?`<br><small>หมายเหตุ: ${esc(a.admin_note)}</small>`:''}`;
-
-      if(a.status==='pending'){
-        preInfo?.classList.add('hidden');
-        form.classList.remove('hidden');
-        if(title)title.textContent='⏳ คำขอสมัครเป็น Rider';
-        [...form.elements].forEach(el=>el.disabled=true);
-        form.querySelector('button[type=submit]').textContent='รอ Admin ตรวจสอบ';
-      }else if(a.status==='approved'){
-        preInfo?.classList.add('hidden');
-        if(title)title.textContent='🛵 งาน Rider';
-        form.classList.add('hidden');
-        approved?.classList.remove('hidden');
-        const summary=$('riderApprovedProfileSummary');
-        if(summary)summary.innerHTML=`
-          <div><span>ชื่อที่ใช้ติดต่อ</span><b>${esc(a.display_name||'-')}</b></div>
-          <div><span>เบอร์โทร</span><b>${esc(a.phone||'-')}</b></div>
-          <div><span>ทะเบียนรถ</span><b>${esc(a.vehicle_plate||'-')}</b></div>
-        `;
-        renderRiderAvailability();
-        // R16.1: local sound test controls for approved Rider. No job/order/push is created.
-        if(approved&&!approved.querySelector('#riderNativeAudioTestBox')){
-          const testBox=document.createElement('div');
-          testBox.id='riderNativeAudioTestBox';
-          testBox.className='payment-card';
-          testBox.style.marginTop='12px';
-          testBox.innerHTML=`<b>🔊 ทดสอบเสียงแจ้งเตือน Rider</b><div class="muted" style="margin-top:4px">ทดสอบเฉพาะเครื่องนี้ ไม่สร้างงาน Rider และไม่ส่งแจ้งเตือนไปหาคนอื่น</div><div class="actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="testRiderNativeAudioBtn" class="primary">🔊 ทดสอบเสียงงาน Rider</button><button type="button" id="stopRiderNativeAudioBtn" class="secondary">⏹ หยุดเสียง</button></div>`;
-          approved.prepend(testBox);
-        }
-        showMainRiderPage('current');
-        loadRiderJobInbox();
-        if(myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
-      }else{
-        if(title)title.textContent='🛵 สมัครเป็น Rider โครงการ';
-        [...form.elements].forEach(el=>el.disabled=false);
-        form.querySelector('button[type=submit]').textContent='ส่งใบสมัครเป็น Rider';
-      }
-    }else{
-      if(title)title.textContent='🛵 สมัครเป็น Rider โครงการ';
-      if(status)status.textContent='โปรดอ่านรายละเอียดให้ครบก่อนเปิดแบบฟอร์มสมัคร';
-      [...form.elements].forEach(el=>el.disabled=false);
-      form.reset();
-      form.elements.rider_name.value=currentDisplayName()||'';
-      form.querySelector('button[type=submit]').textContent='ส่งใบสมัครเป็น Rider';
-    }
-  }
-
-
-  let riderJobsRealtimeChannel=null;
-  let riderAlertAudioArmed=false;
-  let riderWaitingJobIds=new Set();
-  let riderWaitingJobsBaseline=false;
-  let riderSoundRepeatTimer=null;
-  let riderWaitingJobPollTimer=null;
-  let mainRiderHistoryRows=[];
-  let mainRiderHistoryFilter='completed';
-  const RIDER_WAITING_SEEN_KEY='market_rider_waiting_seen_v1';
-
-  function showMainRiderPage(page){
-    const history=page==='history';
-    $('mainRiderCurrentPage')?.classList.toggle('hidden',history);
-    $('mainRiderHistoryPage')?.classList.toggle('hidden',!history);
-    $('mainRiderCurrentTab')?.classList.toggle('active',!history);
-    $('mainRiderHistoryTab')?.classList.toggle('active',history);
-    if(history)loadMainRiderHistory();
-  }
-
-  function mainRiderHistoryTime(job){return job.completed_at||job.cancelled_at||job.updated_at||job.created_at}
-  function mainRiderSameDay(value,date){const d=new Date(value);return d.getFullYear()===date.getFullYear()&&d.getMonth()===date.getMonth()&&d.getDate()===date.getDate()}
-  function mainRiderIncome(rows,predicate){return rows.filter(j=>j.status==='completed'&&predicate(j)).reduce((sum,j)=>sum+Number(j.delivery_fee||0),0)}
-
-  async function loadMainRiderHistory(){
-    const box=$('mainRiderHistoryList');
-    if(!db||!session||myRiderApplication?.status!=='approved'){
-      if(box)box.innerHTML='<p class="muted">บัญชีนี้ยังไม่ได้รับสิทธิ์เป็น Rider</p>';
-      return;
-    }
-    if(box)box.innerHTML='<p class="muted">กำลังโหลดประวัติ...</p>';
-    try{
-      const {data,error}=await db.rpc('market_my_rider_job_history');
-      if(error)throw error;
-      const rows=Array.isArray(data)?data:(data?.jobs||[]);
-      mainRiderHistoryRows=rows.sort((a,b)=>new Date(mainRiderHistoryTime(b))-new Date(mainRiderHistoryTime(a)));
-      renderMainRiderHistory();
-    }catch(err){
-      if(box)box.innerHTML=`<p class="muted">โหลดประวัติไม่สำเร็จ: ${esc(err?.message||err)}</p>`;
-    }
-  }
-
-  function renderMainRiderHistory(){
-    const now=new Date(),todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()),sevenStart=new Date(todayStart);sevenStart.setDate(sevenStart.getDate()-6);
-    const monthStart=new Date(now.getFullYear(),now.getMonth(),1),completed=mainRiderHistoryRows.filter(j=>j.status==='completed');
-    const today=mainRiderIncome(completed,j=>mainRiderSameDay(mainRiderHistoryTime(j),now));
-    const seven=mainRiderIncome(completed,j=>new Date(mainRiderHistoryTime(j))>=sevenStart);
-    const month=mainRiderIncome(completed,j=>new Date(mainRiderHistoryTime(j))>=monthStart);
-    const summary=$('mainRiderIncomeSummary');
-    if(summary)summary.innerHTML=`
-      <article><small>รายได้วันนี้</small><strong>${today.toLocaleString('th-TH')} บาท</strong></article>
-      <article><small>รายได้ 7 วัน</small><strong>${seven.toLocaleString('th-TH')} บาท</strong></article>
-      <article><small>รายได้เดือนนี้</small><strong>${month.toLocaleString('th-TH')} บาท</strong></article>
-      <article><small>งานสำเร็จในประวัติ</small><strong>${completed.length} งาน</strong></article>`;
-    document.querySelectorAll('[data-main-rider-history-filter]').forEach(btn=>btn.classList.toggle('active',btn.dataset.mainRiderHistoryFilter===mainRiderHistoryFilter));
-    const rows=mainRiderHistoryRows.filter(j=>j.status===mainRiderHistoryFilter),box=$('mainRiderHistoryList');
-    if(box)box.innerHTML=rows.length?rows.map(mainRiderHistoryCard).join(''):`<div class="rider-job-empty">ยังไม่มี${mainRiderHistoryFilter==='completed'?'งานสำเร็จ':'งานยกเลิก'}</div>`;
-  }
-
-  function mainRiderHistoryCard(job){
-    const done=job.status==='completed',ref=String(job.group_id||job.id||'').replace(/-/g,'').slice(0,8).toUpperCase();
-    const fee=Number(job.delivery_fee||0),km=Number(job.distance_km||0),when=mainRiderHistoryTime(job);
-    return `<article class="rider-job-card main-rider-history-card"><div class="rider-job-card-head"><div><b>เลขอ้างอิง #${esc(ref)}</b><small>${done?'ส่งงานสำเร็จ':'งานยกเลิก'}</small></div><div class="rider-job-price">${done?fee.toLocaleString('th-TH')+' บาท':'-'}</div></div><div class="rider-job-meta">📅 ${new Date(when).toLocaleString('th-TH')}${km?` · 📏 ${km.toFixed(1)} กม.`:''}</div><small class="main-rider-privacy-note">ข้อมูลติดต่อและที่อยู่ลูกค้าถูกซ่อนหลังจบงาน</small></article>`;
-  }
-
-  function armRiderAlertAudio(){
-    if(riderAlertAudioArmed)return;
-    riderAlertAudioArmed=true;
-    try{
-      const C=window.AudioContext||window.webkitAudioContext;
-      if(!C)return;
-      const c=window.__marketRiderAudioContext||new C();
-      window.__marketRiderAudioContext=c;
-      c.resume?.();
-      const o=c.createOscillator(),g=c.createGain();
-      g.gain.value=.0001;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.01);
-    }catch(_e){}
-  }
-
-  function playRiderAlertSound(){
-    if(!riderAlertAudioArmed)return;
-    try{
-      const C=window.AudioContext||window.webkitAudioContext;
-      if(!C)return;
-      const c=window.__marketRiderAudioContext||new C();
-      window.__marketRiderAudioContext=c;c.resume?.();
-      const now=c.currentTime;
-      [880,1175,880,1175,988,1318].forEach((freq,i)=>{
-        const d=i*.34,o=c.createOscillator(),g=c.createGain();
-        o.type='square';o.frequency.value=freq;
-        g.gain.setValueAtTime(.0001,now+d);
-        g.gain.exponentialRampToValueAtTime(.34,now+d+.02);
-        g.gain.setValueAtTime(.25,now+d+.18);
-        g.gain.exponentialRampToValueAtTime(.0001,now+d+.30);
-        o.connect(g);g.connect(c.destination);o.start(now+d);o.stop(now+d+.32);
-      });
-    }catch(_e){}
-  }
-
-
-  function riderJobInboxStatusLabel(status){
-    const s=String(status||'');
-    return ({creating:'รอ Rider รับงาน',waiting_rider:'รอ Rider รับงาน',created:'รอ Rider รับงาน',open:'รอ Rider รับงาน',
-      accepted:'รับงานแล้ว',pickup_started:'กำลังไปรับสินค้า',picked_up:'รับสินค้าแล้ว',
-      delivering:'กำลังจัดส่ง',completed:'ส่งสำเร็จ',cancelled:'ยกเลิก'})[s]||s||'-';
-  }
-
-
-  function stopRiderNewJobSound(){
-    if(riderSoundRepeatTimer){clearTimeout(riderSoundRepeatTimer);riderSoundRepeatTimer=null;}
-  }
-
-  function playRiderNewJobSound(){
-    stopRiderNewJobSound();
-    playRiderAlertSound();
-    // เตือนซ้ำอีก 2 รอบเพื่อให้ได้ยินง่ายขึ้น แต่ไม่วนไม่รู้จบ
-    let n=0;
-    const again=()=>{
-      if(++n>2)return;
-      riderSoundRepeatTimer=setTimeout(()=>{playRiderAlertSound();again();},2200);
-    };
-    again();
-  }
-
-  function syncRiderWaitingJobs(jobs,{notify=true}={}){
-    const next=new Set(
-      (Array.isArray(jobs)?jobs:[])
-        .filter(j=>Boolean(j?.can_accept))
-        .map(j=>String(j.batch_id||''))
-        .filter(Boolean)
-    );
-
-    // Persist waiting IDs so a job that arrived while the rider screen was not open
-    // is still recognized as NEW on the next foreground refresh instead of becoming
-    // a silent "baseline" job.
-    let previous=riderWaitingJobIds;
-    if(!riderWaitingJobsBaseline){
-      try{
-        const saved=JSON.parse(localStorage.getItem(RIDER_WAITING_SEEN_KEY)||'[]');
-        previous=new Set(Array.isArray(saved)?saved.map(String):[]);
-      }catch(_e){previous=new Set();}
-      riderWaitingJobsBaseline=true;
-    }
-
-    const added=[...next].filter(id=>!previous.has(id));
-    riderWaitingJobIds=next;
-    try{localStorage.setItem(RIDER_WAITING_SEEN_KEY,JSON.stringify([...next]));}catch(_e){}
-
-    if(notify&&added.length){
-      // In-page sound works after the rider has interacted with the PWA once.
-      // Background/screen-off delivery is handled by Web Push + OS notification.
-      playRiderNewJobSound();
-      try{
-        if('Notification' in window&&Notification.permission==='granted'){
-          const addedJobs=(Array.isArray(jobs)?jobs:[]).filter(j=>added.includes(String(j?.batch_id||'')));
-          const fares=addedJobs.map(j=>Number(j?.delivery_fee||0)).filter(n=>n>0);
-          const fareText=fares.length===1?` · รายได้ ${fares[0].toLocaleString('th-TH')} บาท`:fares.length>1?` · รายได้รวม ${fares.reduce((s,n)=>s+n,0).toLocaleString('th-TH')} บาท`:'';
-          new Notification('🛵 มีงาน Rider ใหม่',{
-            body:`มีงานใหม่รอรับ ${added.length} งาน${fareText}`,
-            tag:'market-rider-new-job',
-            renotify:true,
-            requireInteraction:true,
-            silent:false
-          });
-        }
-      }catch(_e){}
-      const addedJobs=(Array.isArray(jobs)?jobs:[]).filter(j=>added.includes(String(j?.batch_id||'')));
-      const totalFare=addedJobs.reduce((sum,j)=>sum+Number(j?.delivery_fee||0),0);
-      showNotice(`🛵 มีงาน Rider ใหม่ ${added.length} งาน${totalFare>0?` · รายได้ ${totalFare.toLocaleString('th-TH')} บาท`:''}`);
-    }
-  }
-
-  function riderMapLink(lat,lng,label='จุดหมาย'){
-    const a=Number(lat),b=Number(lng);
-    if(!Number.isFinite(a)||!Number.isFinite(b)||!a||!b)return '';
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a},${b}`)}&travelmode=driving`;
-  }
-
-  function riderCoordinateText(lat,lng){
-    const a=Number(lat),b=Number(lng);
-    if(!Number.isFinite(a)||!Number.isFinite(b)||!a||!b)return 'ยังไม่มีพิกัด';
-    return `${a.toFixed(6)}, ${b.toFixed(6)}`;
-  }
-
-  function riderProgressAction(job){
-    if(!job?.is_mine)return '';
-    const s=String(job.status||'');
-    if(s==='accepted')return `<button type="button" class="primary rider-next-job" data-rider-advance-batch="${esc(job.batch_id)}" data-rider-next="pickup_started">🛵 เริ่มไปรับสินค้า</button>`;
-    if(s==='pickup_started')return `<button type="button" class="primary rider-next-job" data-rider-advance-batch="${esc(job.batch_id)}" data-rider-next="picked_up">📦 รับสินค้าครบแล้ว</button>`;
-    if(s==='picked_up')return `<button type="button" class="primary rider-next-job" data-rider-advance-batch="${esc(job.batch_id)}" data-rider-next="delivering">🏠 เริ่มนำส่งลูกค้า</button>`;
-    if(s==='delivering'&&!job.delivery_arrived_at)return `<div class="rider-proof-action">
-      <input class="rider-proof-input" type="file" accept="image/*" capture="environment" data-rider-proof-input="${esc(job.batch_id)}" hidden>
-      <button type="button" class="primary rider-next-job" data-rider-proof-batch="${esc(job.batch_id)}">📷 ถ่ายภาพส่งมอบ / ถึงจุดส่ง</button>
-      <small>ต้องแนบภาพส่งมอบก่อนจบขั้นตอนของ Rider</small>
-    </div>`;
-    if(s==='delivering'&&job.delivery_arrived_at)return `<div class="rider-job-owned">✅ ส่งหลักฐานแล้ว · ระบบจะปิดงานอัตโนมัติภายใน 1 ชั่วโมง</div>`;
-    return `<div class="rider-job-owned">งานของคุณ · ${esc(riderJobInboxStatusLabel(job.status))}</div>`;
-  }
-
-  function riderJobCard(job){
-    const waiting=Boolean(job?.can_accept);
-    const mine=Boolean(job?.is_mine);
-    const shops=Array.isArray(job?.shops)?job.shops:[];
-    const shopHtml=shops.length?shops.map((s,i)=>{
-      const map=riderMapLink(s.latitude,s.longitude,s.name);
-      const coord=riderCoordinateText(s.latitude,s.longitude);
-      const ready=String(s.order_status||'')==='ready';
-      return `<div class="rider-stop ${ready?'rider-stop-ready':''}">
-        <b>${i+1}. ${esc(s.name||'ร้านค้า')}</b>
-        <div class="${ready?'rider-shop-ready':'rider-shop-preparing'}">${ready?'✅ สินค้าพร้อมให้เข้ารับ':'⏳ ร้านกำลังเตรียมสินค้า'}</div>
-        ${s.address?`<small>${esc(s.address)}</small>`:''}
-        <small>📌 พิกัด: ${esc(coord)}</small>
-        <div class="rider-contact-actions">
-          ${s.phone?`<a class="rider-mini-btn" href="tel:${esc(s.phone)}">☎ โทรร้าน</a>`:''}
-          ${map?`<a class="rider-mini-btn map" href="${esc(map)}" target="_blank" rel="noopener">🧭 นำทางไปจุดรับ</a>`:''}
-        </div>
-      </div>`;
-    }).join(''):'<div class="muted">ไม่พบรายละเอียดร้าน</div>';
-
-    const customer=job?.customer_name||'-',phone=job?.customer_phone||'',address=job?.delivery_address||'-';
-    const deliveryMap=riderMapLink(job?.delivery_lat,job?.delivery_lng,'จุดส่งลูกค้า');
-    const deliveryCoord=riderCoordinateText(job?.delivery_lat,job?.delivery_lng);
-    const fee=Number(job?.delivery_fee||0),km=Number(job?.distance_km||0);
-
-    return `<article class="rider-job-card ${waiting?'waiting':mine?'mine':''}" data-rider-job-batch="${esc(job.batch_id)}">
-      <div class="rider-job-card-head">
-        <div><b>งาน #${esc(String(job?.batch_id||'').slice(0,8).toUpperCase())}</b><small>${esc(riderJobInboxStatusLabel(job?.status))}</small></div>
-        <div class="rider-job-price">${fee?'รายได้ '+fee.toLocaleString('th-TH')+' บาท':'รอข้อมูลค่าจัดส่ง'}</div>
-      </div>
-      <div class="rider-job-meta">${km?`📏 ${km.toFixed(1)} กม.`:''}${shops.length?` · 🏪 ${shops.length} จุดรับ`:''}</div>
-
-      <div class="rider-job-section"><strong>จุดรับสินค้า</strong>${shopHtml}</div>
-
-      <div class="rider-job-section">
-        <strong>จุดส่งลูกค้า</strong>
-        <div>👤 ${esc(customer)}</div>
-        ${phone?`<a href="tel:${esc(phone)}">☎ ${esc(phone)}</a>`:''}
-        <div>📍 ${esc(address)}</div>
-        <small>📌 พิกัด: ${esc(deliveryCoord)}</small>
-        <div class="rider-contact-actions">
-          ${phone?`<a class="rider-mini-btn" href="tel:${esc(phone)}">☎ โทรลูกค้า</a>`:''}
-          ${deliveryMap?`<a class="rider-mini-btn map" href="${esc(deliveryMap)}" target="_blank" rel="noopener">🧭 นำทางไปจุดส่ง</a>`:''}
-        </div>
-      </div>
-
-      ${waiting?`<button type="button" class="primary rider-accept-job" data-rider-accept-batch="${esc(job.batch_id)}">✅ รับงานนี้</button>`:riderProgressAction(job)}
-    </article>`;
-  }
-
-  async function fillRiderInboxFareFallback(jobs){
-    const rows=Array.isArray(jobs)?jobs:[];
-    const ids=[...new Set(rows.map(j=>j?.batch_id).filter(Boolean).map(String))];
-    if(!ids.length)return rows;
-    try{
-      const {data,error}=await db.rpc('market_my_rider_job_fares',{p_batch_ids:ids});
-      if(error)throw error;
-      const fareRows=Array.isArray(data)?data:(data?.jobs||[]);
-      const fares=new Map(fareRows.map(j=>[String(j.batch_id),j]));
-      return rows.map(job=>{
-        const fallback=fares.get(String(job.batch_id||''));
-        if(!fallback)return job;
-        return {...job,
-          delivery_fee:Number(job.delivery_fee||0)>0?job.delivery_fee:fallback.delivery_fee,
-          distance_km:Number(job.distance_km||0)>0?job.distance_km:fallback.distance_km
-        };
-      });
-    }catch(err){
-      console.warn('โหลดค่าจัดส่งสำรองไม่สำเร็จ',err?.message||err);
-      return rows;
-    }
-  }
-
-  async function loadRiderJobInbox({quiet=false}={}){
-    const box=$('riderJobInbox');
-    if(!db||!session||myRiderApplication?.status!=='approved'){
-      if(box)box.innerHTML='<p class="muted">บัญชีนี้ยังไม่ได้รับสิทธิ์เป็น Rider</p>';
-      return [];
-    }
-    if(box&&!quiet)box.innerHTML='<p class="muted">กำลังโหลดงาน Rider...</p>';
-    try{
-      const {data,error}=await db.rpc('market_my_rider_job_inbox');
-      if(error)throw error;
-      const hydrated=await fillRiderInboxFareFallback(Array.isArray(data)?data:(data?.jobs||[]));
-      const seenBatchIds=new Set();
-      const jobs=hydrated.filter(job=>{
-        const batchId=String(job?.batch_id||'');
-        if(!batchId||seenBatchIds.has(batchId))return false;
-        seenBatchIds.add(batchId);
-        const shops=Array.isArray(job?.shops)?job.shops:[];
-        // An open job without a pickup is an incomplete/orphan batch and must
-        // never be offered to a Rider. After proof submission there is no more
-        // Rider action, so move it out of the current-work screen immediately.
-        if(job?.can_accept&&shops.length===0)return false;
-        if(job?.is_mine&&job?.delivery_arrived_at)return false;
-        return true;
-      });
-      syncRiderWaitingJobs(jobs,{notify:true});
-      if(box)box.innerHTML=jobs.length?jobs.map(riderJobCard).join(''):'<div class="rider-job-empty">✅ ตอนนี้ยังไม่มีงานใหม่หรืองานที่ต้องดำเนินการ</div>';
-      return jobs;
-    }catch(err){
-      if(box)box.innerHTML=`<p class="muted">โหลดงาน Rider ไม่สำเร็จ: ${esc(err?.message||err)}</p>`;
-      return [];
-    }
-  }
-
-  async function acceptRiderJob(batchId){
-    if(!db||!session||myRiderApplication?.status!=='approved')return alert('บัญชีนี้ยังไม่ได้รับสิทธิ์เป็น Rider');
-    // V0.5.22.96: do not reject from a client-side preflight.
-    // The inbox RPC already filters pickup/cancelled jobs, and the atomic
-    // market_rider_accept_delivery_batch RPC remains the server-side authority.
-    if(!confirm('ยืนยันรับงานนี้? เมื่อรับแล้วงานจะถูกล็อกให้คุณทันที'))return;
-    const btn=document.querySelector(`[data-rider-accept-batch="${CSS.escape(String(batchId))}"]`);
-    if(btn){btn.disabled=true;btn.textContent='กำลังรับงาน...';}
-    try{
-      const {data,error}=await db.rpc('market_rider_accept_delivery_batch',{p_batch_id:batchId});
-      if(error)throw error;
-      alert('✅ รับงานเรียบร้อยแล้ว');
-      await loadRiderJobInbox();
-    }catch(err){
-      alert('รับงานไม่สำเร็จ: '+(err?.message||err));
-      await loadRiderJobInbox({quiet:true});
-    }
-  }
-
-
-  async function advanceRiderJob(batchId,nextStatus){
-    if(!db||!session||myRiderApplication?.status!=='approved')return alert('บัญชีนี้ยังไม่ได้รับสิทธิ์เป็น Rider');
-    const labels={
-      pickup_started:'เริ่มไปรับสินค้า',
-      picked_up:'ยืนยันว่ารับสินค้าครบแล้ว',
-      delivering:'เริ่มนำส่งลูกค้า',
-      arrived:'ยืนยันว่าถึงจุดส่งแล้ว'
-    };
-    if(!confirm(`${labels[nextStatus]||'ดำเนินการขั้นถัดไป'} ใช่หรือไม่?`))return;
-    const btn=document.querySelector(`[data-rider-advance-batch="${CSS.escape(String(batchId))}"]`);
-    if(btn){btn.disabled=true;btn.textContent='กำลังอัปเดต...';}
-    try{
-      const {error}=await db.rpc('market_rider_advance_delivery_batch',{p_batch_id:batchId,p_action:nextStatus});
-      if(error)throw error;
-      await loadRiderJobInbox();
-      showNotice('อัปเดตสถานะงาน Rider แล้ว');
-    }catch(err){
-      alert('อัปเดตงานไม่สำเร็จ: '+(err?.message||err));
-      await loadRiderJobInbox({quiet:true});
-    }
-  }
-
-
-  async function submitRiderDeliveryProof(batchId,file){
-    if(!db||!session||myRiderApplication?.status!=='approved')return alert('บัญชีนี้ยังไม่ได้รับสิทธิ์เป็น Rider');
-    if(!file)return;
-    let path='';
-    const btn=document.querySelector(`[data-rider-proof-batch="${CSS.escape(String(batchId))}"]`);
-    if(btn){btn.disabled=true;btn.textContent='กำลังอัปโหลดภาพ...';}
-    try{
-      const packed=await compressImage(file,{maxWidth:1600,maxHeight:1600,maxBytes:650*1024});
-      path=`${batchId}/${session.user.id}/delivery-${Date.now()}.webp`;
-      const {error:up}=await db.storage.from('rider-delivery-proof').upload(path,packed,{
-        contentType:'image/webp',upsert:false,cacheControl:'604800'
-      });
-      if(up)throw up;
-
-      const {error}=await db.rpc('market_rider_submit_delivery_proof',{
-        p_batch_id:batchId,p_proof_path:path
-      });
-      if(error)throw error;
-
-      showNotice('📷 บันทึกภาพส่งมอบแล้ว · ระบบจะปิดงานอัตโนมัติภายใน 1 ชั่วโมง');
-      playRiderAlertSound();
-      await loadRiderJobInbox();
-    }catch(err){
-      if(path){
-        try{await db.storage.from('rider-delivery-proof').remove([path])}catch(_e){}
-      }
-      alert('บันทึกภาพส่งมอบไม่สำเร็จ: '+(err?.message||err));
-      if(btn){btn.disabled=false;btn.textContent='📷 ถ่ายภาพส่งมอบ / ถึงจุดส่ง';}
-    }
-  }
-
-  function notifyRiderNewJob(){
-    playRiderAlertSound();
-    try{
-      if('Notification' in window && Notification.permission==='granted'){
-        new Notification('🛵 มีงาน Rider ใหม่',{body:'มีงาน Delivery ใหม่รอรับ กด “งาน Rider” เพื่อดูรายละเอียด',tag:'market-rider-new-job'});
-      }
-    }catch(_e){}
-    if(document.visibilityState==='visible')showNotice('🛵 มีงาน Rider ใหม่รอรับ');
-  }
-
-  function stopRiderJobRealtime(){
-    if(riderJobsRealtimeChannel&&db){
-      try{db.removeChannel(riderJobsRealtimeChannel)}catch(_e){}
-    }
-    riderJobsRealtimeChannel=null;
-    if(riderWaitingJobPollTimer){clearInterval(riderWaitingJobPollTimer);riderWaitingJobPollTimer=null;}
-    stopRiderNewJobSound();
-    riderWaitingJobIds=new Set();
-    riderWaitingJobsBaseline=false;
-  }
-
-  function startRiderJobRealtime(){
-    stopRiderJobRealtime();
-    if(!db||!session||myRiderApplication?.status!=='approved'||!myRiderOnline||!db.channel)return;
-    try{
-      riderJobsRealtimeChannel=db.channel('market-rider-jobs-'+session.user.id)
-        .on('postgres_changes',{event:'INSERT',schema:'public',table:'market_delivery_batches'},async()=>{
-          await loadRiderJobInbox({quiet:true});
-        })
-        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'market_delivery_batches'},async(payload)=>{
-          const changed=payload?.new||{};
-          const mine=changed.rider_phone&&myRiderApplication?.phone&&String(changed.rider_phone)===String(myRiderApplication.phone);
-          if(mine)playRiderAlertSound();
-          // Remove stale waiting card immediately when customer cancels rider dispatch / switches to pickup.
-          if(changed.id&&(changed.status==='cancelled'||changed.accepted_at)){
-            document.querySelector(`[data-rider-job-batch="${CSS.escape(String(changed.id))}"]`)?.remove();
-          }
-          await loadRiderJobInbox({quiet:true});
-        })
-        .subscribe();
-      if(!riderWaitingJobPollTimer){
-        riderWaitingJobPollTimer=setInterval(()=>{
-          if(document.visibilityState==='visible'&&myRiderApplication?.status==='approved'&&myRiderOnline)loadRiderJobInbox({quiet:true});
-        },180000);
-      }
-    }catch(err){console.warn('rider realtime skipped',err);}
-  }
-
-  function editApprovedRiderProfile(){
-    const a=myRiderApplication;
-    const form=$('riderApplyForm'),approved=$('riderApprovedBox'),title=$('riderApplyTitle'),status=$('riderApplyStatusBox');
-    if(!a||a.status!=='approved'||!form)return;
-    approved?.classList.add('hidden');
-    $('riderPreApplyInfo')?.classList.add('hidden');
-    form.classList.remove('hidden');
-    form.dataset.mode='edit';
-    [...form.elements].forEach(el=>el.disabled=false);
-    form.elements.rider_name.value=a.display_name||currentDisplayName()||'';
-    form.elements.rider_phone.value=a.phone||'';
-    form.elements.vehicle_plate.value=a.vehicle_plate||'';
-    if(form.elements.service_area_consent)form.elements.service_area_consent.checked=true;
-    if(form.elements.rider_terms_consent)form.elements.rider_terms_consent.checked=true;
-    if(title)title.textContent='✏️ แก้ไขข้อมูล Rider';
-    if(status)status.innerHTML='สถานะ: <b>✅ อนุมัติแล้ว</b><br><small>การแก้ข้อมูลไม่ทำให้สิทธิ์การเป็น Rider หาย และไม่ต้องสมัครใหม่</small>';
-    form.querySelector('button[type=submit]').textContent='💾 บันทึกข้อมูล Rider';
-  }
-
-  function acknowledgeRiderDetails(){
-    const info=$('riderPreApplyInfo'),form=$('riderApplyForm');
-    if(!form)return;
-    if(!session){
-      closeModal('riderApplyModal');
-      openModal('authModal');
-      return alert('รับทราบรายละเอียดแล้ว กรุณาเข้าสู่ระบบหรือสมัครสมาชิกก่อนส่งใบสมัครเป็น Rider');
-    }
-    info?.classList.add('hidden');
-    form.classList.remove('hidden');
-    form.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-
-  async function openRiderApplication(){
-    if(!session){
-      myRiderApplication=null;
-      fillRiderApplicationModal();
-      openModal('riderApplyModal');
-      return;
-    }
-    await loadMyRiderApplication();
-    fillRiderApplicationModal();
-    openModal('riderApplyModal');
-  }
-
-  async function submitRiderApplication(ev){
-    ev.preventDefault();
-    if(!db||!session)return openModal('authModal');
-    const f=ev.currentTarget;
-    const name=String(f.elements.rider_name.value||'').trim();
-    const phone=String(f.elements.rider_phone.value||'').trim();
-    const areaConsent=Boolean(f.elements.service_area_consent?.checked);
-    const termsConsent=Boolean(f.elements.rider_terms_consent?.checked);
-    const area='อำเภอกระทุ่มแบนและพื้นที่ใกล้เคียงตามที่ระบบกำหนด';
-    const plate=String(f.elements.vehicle_plate.value||'').trim();
-    if(!name||!phone||!plate||!areaConsent||!termsConsent)return alert('กรุณากรอกข้อมูลให้ครบ และติ๊กรับทราบพื้นที่ให้บริการกับรายละเอียดการเป็น Rider');
-    const btn=f.querySelector('button[type=submit]');
-    btn.disabled=true;btn.textContent='กำลังส่งใบสมัคร...';
-    try{
-      const editing=f.dataset.mode==='edit' && myRiderApplication?.status==='approved';
-      const rpcName=editing?'market_update_my_rider_profile':'market_apply_as_rider';
-      const {error}=await db.rpc(rpcName,{
-        p_display_name:name,p_phone:phone,p_service_area:area,p_vehicle_plate:plate
-      });
-      if(error)throw error;
-      await loadMyRiderApplication();
-      fillRiderApplicationModal();
-      alert(editing?'บันทึกข้อมูล Rider เรียบร้อยแล้ว':'ส่งใบสมัครเป็น Rider แล้ว กรุณารอ Admin ตรวจสอบ');
-    }catch(err){
-      alert('ส่งใบสมัครไม่สำเร็จ: '+(err?.message||err));
-    }finally{
-      btn.disabled=false;
-      if(f.dataset.mode==='edit')btn.textContent='💾 บันทึกข้อมูล Rider';
-      else if(myRiderApplication?.status!=='pending')btn.textContent='ส่งใบสมัครเป็น Rider';
-    }
-  }
-
-  async function loadAdminRiderApplicants(){
-    const box=$('adminRiderApplicantList');
-    if(!box||!db||profile?.role!=='admin')return;
-    box.innerHTML='<p class="muted">กำลังโหลดคำขอสมัครเป็น Rider...</p>';
-    try{
-      const {data,error}=await db.rpc('market_admin_rider_applications');
-      if(error)throw error;
-      const rows=data||[];
-      const pending=rows.filter(x=>x.status==='pending');
-      box.innerHTML=rows.length?rows.map(a=>`<div style="padding:12px 0;border-bottom:1px solid #eee">
-        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div><b>${esc(a.display_name||'-')}</b> · <a href="tel:${esc(a.phone||'')}">${esc(a.phone||'-')}</a>
-          <small class="muted" style="display:block">พื้นที่: ${esc(a.service_area||'-')} · ทะเบียน: ${esc(a.vehicle_plate||'-')}</small>
-          <small class="muted" style="display:block">${riderApplicationStatusText(a.status)} · สมัคร ${a.created_at?new Date(a.created_at).toLocaleString('th-TH'):'-'}</small></div>
-          <div>${a.status==='pending'?`<button type="button" class="primary" data-rider-approve="${a.user_id}">✅ อนุมัติ</button> <button type="button" class="danger" data-rider-reject="${a.user_id}">ไม่อนุมัติ</button>`:a.status==='approved'?`<span class="muted">${riderApplicationStatusText(a.status)}</span> <button type="button" class="danger" data-rider-revoke="${a.user_id}">🚫 ยกเลิกการอนุมัติ</button>`:`<span class="muted">${riderApplicationStatusText(a.status)}</span>`}</div>
-        </div>
-      </div>`).join(''):'<p class="muted">ยังไม่มีคำขอสมัครเป็น Rider</p>';
-      const status=$('riderRegistryStatus');
-      if(status&&pending.length)status.textContent=`มีคำขอรอตรวจสอบ ${pending.length} คน`;
-    }catch(err){
-      box.innerHTML=`<p class="muted">โหลดคำขอสมัครเป็น Rider ไม่ได้: ${esc(err?.message||err)}</p>`;
-    }
-  }
-
-  async function decideRiderApplication(userId,approve){
-    if(!db||profile?.role!=='admin')return;
-    let note='';
-    if(!approve){
-      note=prompt('เหตุผลที่ยังไม่อนุมัติ (ผู้สมัครจะเห็นข้อความนี้)')||'';
-      if(note===null)return;
-    }
-    if(!confirm(approve?'อนุมัติผู้สมัครคนนี้เป็น Rider ในระบบ?':'ยืนยันไม่อนุมัติคำขอนี้?'))return;
-    try{
-      const {error}=await db.rpc('market_admin_decide_rider_application',{
-        p_user_id:userId,p_approve:approve,p_admin_note:note
-      });
-      if(error)throw error;
-      await loadAdminRiderApplicants();
-      await loadRiderAdminPanel();
-      showNotice(approve?'อนุมัติ Rider เรียบร้อยแล้ว และเพิ่มเข้ารายชื่อ Rider ในระบบแล้ว':'อัปเดตคำขอสมัครเป็น Rider แล้ว');
-    }catch(err){
-      alert('อัปเดตคำขอไม่สำเร็จ: '+(err?.message||err));
-    }
-  }
-
-  async function revokeRiderApproval(userId){
-    if(!db||profile?.role!=='admin')return;
-    const note=prompt('เหตุผลที่ยกเลิกการอนุมัติ Rider (Rider จะเห็นข้อความนี้)')||'';
-    if(!confirm('ยืนยันยกเลิกการอนุมัติ Rider คนนี้?\n\nหลังยกเลิก Rider จะไม่สามารถรับงานใหม่หรือเปิดสถานะพร้อมรับงานได้ และประวัติงานเดิมจะไม่ถูกลบ'))return;
-    try{
-      const {error}=await db.rpc('market_admin_revoke_rider_approval',{
-        p_user_id:userId,p_admin_note:note
-      });
-      if(error)throw error;
-      await loadAdminRiderApplicants();
-      await loadRiderAdminPanel();
-      showNotice('ยกเลิกการอนุมัติ Rider เรียบร้อยแล้ว');
-    }catch(err){
-      alert('ยกเลิกการอนุมัติไม่สำเร็จ: '+(err?.message||err));
-    }
-  }
-
-  function riderJobStatusLabel(status){
-    return ({created:'รอ Rider รับงาน',accepted:'Rider รับงานแล้ว',pickup_started:'กำลังไปรับสินค้า',picked_up:'รับสินค้าแล้ว',delivering:'กำลังจัดส่ง',completed:'ส่งสำเร็จ',cancelled:'ยกเลิก'})[status]||status||'-';
-  }
-  async function loadRiderAdminPanel(){
-    if(!db||profile?.role!=='admin')return;
-    loadAdminRiderApplicants();
-    const list=$('adminRiderList'),jobs=$('adminRiderJobs'),status=$('riderRegistryStatus');
-    if(list)list.innerHTML='<p class="muted">กำลังโหลดรายชื่อ Rider...</p>';
-    if(jobs)jobs.innerHTML='<p class="muted">กำลังโหลดงาน Delivery...</p>';
-    try{
-      const [{data:riders,error:e1},{data:recent,error:e2}]=await Promise.all([
-        db.rpc('market_admin_rider_directory'),
-        db.rpc('market_admin_recent_rider_jobs',{p_limit:50})
-      ]);
-      if(e1)throw e1;if(e2)throw e2;
-      const rows=riders||[];
-      if(status)status.textContent=`${rows.length.toLocaleString('th-TH')} คนในทะเบียน`;
-      if(list)list.innerHTML=rows.length?rows.map(r=>{const systemRider=r.source==='rider_profiles';const sourceLabel=systemRider?' · บัญชี Rider ในระบบ':r.source==='admin'?' · Admin เพิ่ม':' · พบจากงาน Delivery';const action=systemRider?'<span class="muted" style="font-size:12px">จัดการสถานะจากระบบ Rider</span>':`<button type="button" class="${r.enabled?'danger':'secondary'}" data-rider-toggle="${r.id}" data-rider-enabled="${r.enabled?'true':'false'}">${r.enabled?'ปิดใช้งาน':'เปิดใช้งาน'}</button>`;return `<div style="display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(125px,1fr) minmax(90px,.7fr) minmax(110px,.8fr) minmax(110px,.9fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eee"><div><b>${esc(r.display_name||'ไม่ระบุชื่อ')}</b><small class="muted" style="display:block">${r.enabled?'🟢 เปิดใช้งาน':'⚫ ปิดใช้งาน'}${sourceLabel}</small></div><div><a href="tel:${esc(r.phone||'')}">${esc(r.phone||'-')}</a></div><div><b>${Number(r.active_jobs||0)}</b><small class="muted" style="display:block">งานกำลังทำ</small></div><div><b>${Number(r.completed_jobs||0)}</b><small class="muted" style="display:block">ส่งสำเร็จ</small></div>${action}</div>`}).join(''):'<p class="muted">ยังไม่มี Rider ในระบบ</p>';
-      const jr=recent||[];
-      if(jobs)jobs.innerHTML=jr.length?jr.map(j=>{const genuinelyWaiting=['creating','waiting_rider','created','open'].includes(String(j.status||''));const hasRider=!!(j.rider_name||j.rider_phone);const riderTitle=hasRider?(j.rider_name||'ไม่ระบุชื่อ Rider'):(genuinelyWaiting?'รอ Rider รับงาน':'ไม่พบข้อมูล Rider (งานเก่า)');const riderSub=j.rider_phone?`<a href="tel:${esc(j.rider_phone)}">${esc(j.rider_phone)}</a>`:(genuinelyWaiting?'ยังไม่มีเบอร์':'ไม่มีข้อมูลผู้รับงานที่บันทึกไว้');return `<div style="display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.5fr) minmax(120px,1fr) minmax(120px,1fr);gap:10px;padding:9px 0;border-bottom:1px solid #eee"><div><b>${esc(String(j.batch_id||'').slice(0,8).toUpperCase())}</b><small class="muted" style="display:block">${j.rider_job_id?esc(String(j.rider_job_id).slice(0,10)):'-'}</small></div><div><b>${hasRider?'🛵 ':genuinelyWaiting?'⏳ ':'⚠️ '}${esc(riderTitle)}</b><small style="display:block">${riderSub}</small></div><div><b>${esc(riderJobStatusLabel(j.status))}</b><small class="muted" style="display:block">${j.accepted_at?new Date(j.accepted_at).toLocaleString('th-TH'):'-'}</small></div><div><b>${j.delivery_fee?Number(j.delivery_fee).toLocaleString('th-TH')+' บาท':'-'}</b><small class="muted" style="display:block">${j.distance_km?Number(j.distance_km).toFixed(1)+' กม.':''}</small></div></div>`}).join(''):'<p class="muted">ยังไม่มีงาน Delivery</p>';
-    }catch(err){
-      const msg='ยังโหลดทะเบียน Rider ไม่ได้: '+(err?.message||'กรุณารัน SQL V0.5.22.15');
-      if(list)list.innerHTML=`<p class="muted">${esc(msg)}</p>`;
-      if(jobs)jobs.innerHTML='';
-    }
-  }
-  async function saveAdminRider(ev){
-    ev.preventDefault();
-    if(!db||profile?.role!=='admin')return alert('เฉพาะ Admin เท่านั้น');
-    const f=ev.currentTarget,name=f.elements.rider_name.value.trim(),phone=f.elements.rider_phone.value.trim();
-    if(!name||!phone)return alert('กรอกชื่อและเบอร์โทร Rider ให้ครบ');
-    try{
-      const {error}=await db.rpc('market_admin_upsert_rider',{p_name:name,p_phone:phone});
-      if(error)throw error;
-      f.reset();await loadRiderAdminPanel();showNotice('บันทึก Rider ในทะเบียนแล้ว');
-    }catch(err){alert('เพิ่ม Rider ไม่สำเร็จ: '+(err?.message||err));}
-  }
-  async function toggleAdminRider(id,enabled){
-    if(!db||profile?.role!=='admin')return;
-    try{
-      const {error}=await db.rpc('market_admin_set_rider_enabled',{p_rider_id:id,p_enabled:!enabled});
-      if(error)throw error;await loadRiderAdminPanel();
-    }catch(err){alert('เปลี่ยนสถานะ Rider ไม่สำเร็จ: '+(err?.message||err));}
-  }
-
-  async function loadAnalyticsDashboard(period=analyticsPeriod){
-    if(!db||profile?.role!=='admin')return;
-    const allowed=new Set(['today','7d','30d','all']);
-    analyticsPeriod=allowed.has(period)?period:'7d';
-    const cards=$('analyticsCards'),top=$('analyticsTopShops'),caption=$('analyticsPeriodCaption');
-    if(cards)cards.innerHTML='<div class="analytics-loading">กำลังโหลดสถิติ...</div>';
-    if(top)top.innerHTML='';
-    const labels={today:'วันนี้ ตั้งแต่ 00:00 น.', '7d':'7 วันปฏิทินล่าสุด', '30d':'30 วันปฏิทินล่าสุด', all:'สะสมทั้งหมดตั้งแต่เริ่มเก็บข้อมูล'};
-    if(caption)caption.textContent=labels[analyticsPeriod]||'';
-    try{
-      const [{data:summary,error:e1},{data:shopsData,error:e2}]=await Promise.all([
-        db.rpc('market_analytics_summary_v2',{p_period:analyticsPeriod}),
-        db.rpc('market_analytics_top_shops_v2',{p_period:analyticsPeriod,p_limit:10})
-      ]);
-      if(e1)throw e1;if(e2)throw e2;
-      const rows=summary||[],byType=Object.fromEntries(rows.map(r=>[r.event_type,r]));
-      const unique=Math.max(...rows.map(r=>Number(r.unique_sessions||0)),0);
-      const metrics=[['ผู้เข้าชมโดยประมาณ (ไม่ซ้ำ)',unique,'sessions'],['จำนวนครั้งที่เปิดเว็บ',Number(byType.page_view?.event_count||0),'page_view'],['เปิดดูร้าน',Number(byType.shop_view?.event_count||0),'shop_view'],['กดนำทาง',Number(byType.navigate_click?.event_count||0),'navigate_click'],['กดโทร',Number(byType.phone_click?.event_count||0),'phone_click'],['คลิกช่องทางสั่งซื้อ',Number(byType.order_click?.event_count||0)+Number(byType.order_lineman_click?.event_count||0)+Number(byType.order_grab_click?.event_count||0)+Number(byType.order_shopee_click?.event_count||0),'order_click']];
-      if(cards)cards.innerHTML=metrics.map(([label,value,key])=>`<div class="analytics-card"><small>${esc(label)}</small><strong>${Number(value).toLocaleString('th-TH')}</strong><span>${key==='sessions'?'session โดยประมาณ':'ครั้ง'}</span></div>`).join('');
-      if(top)top.innerHTML=(shopsData||[]).length?(shopsData||[]).map((r,i)=>`<div class="analytics-shop-row"><b>${i+1}. ${esc(r.shop_name||'ร้านค้า')}</b><span>${Number(r.view_count||0).toLocaleString('th-TH')} ครั้ง</span></div>`).join(''):'<p class="muted">ยังไม่มีข้อมูลการเปิดดูร้านในช่วงนี้</p>';
-      document.querySelectorAll('[data-analytics-period]').forEach(b=>b.classList.toggle('active',b.dataset.analyticsPeriod===analyticsPeriod));
-    }catch(err){if(cards)cards.innerHTML=`<div class="analytics-error">ยังโหลดสถิติไม่ได้: ${esc(err.message||'กรุณารัน SQL Analytics V0.5.22.10')}</div>`;}
-  }
-
-
-  let shops = [], shopIndex = [], featuredShops = [], favoriteShops = [], categories = [], promotions = [], reviewStats = {}, favorites = new Set(), currentCategory = 'all', session = null, profile = null, shopSort = 'recommended', shopOnlyOpen = false, shopOnlyPromo = false, shopDeliveryOnly = false, shopTotalCount = 0, shopPage = 0, shopLoading = false;
-  let projectDeliveryShopIds = new Set();
+  let shops = [], shopIndex = [], featuredShops = [], favoriteShops = [], categories = [], promotions = [], reviewStats = {}, favorites = new Set(), currentCategory = 'all', session = null, profile = null, shopSort = 'recommended', shopOnlyOpen = false, shopOnlyPromo = false, shopTotalCount = 0, shopPage = 0, shopLoading = false;
   const SHOP_PAGE_SIZE = 10;
   let map, mapMarkers = [], mapMarkerLayer = null, userLocation = null, userMarker = null, userAccuracyCircle = null, mapFilterMode = 'all', mapCategoryFilter = 'all';
   const $ = id => document.getElementById(id);
@@ -858,30 +32,15 @@
   };
   const showNotice = (text, isError=false) => { const n=$('notice'); n.textContent=text; n.classList.remove('hidden'); n.style.background=isError?'#ffe5e5':'#fff4d7'; };
   const hideNotice = () => $('notice').classList.add('hidden');
-  const syncModalBodyState = () => {
-    const hasOpenModal = Boolean(document.querySelector('.modal:not(.hidden)'));
-    document.body.classList.toggle('market-modal-open', hasOpenModal);
-    document.body.style.overflow = hasOpenModal ? 'hidden' : '';
-  };
-  const openModal = id => {
-    const modal=$(id);
-    if(!modal)return;
-    modal.classList.remove('hidden');
-    syncModalBodyState();
-  };
-  const closeModal = id => {
-    const modal=$(id);
-    if(!modal)return;
-    modal.classList.add('hidden');
-    syncModalBodyState();
-  };
+  const openModal = id => { $(id).classList.remove('hidden'); document.body.style.overflow='hidden'; };
+  const closeModal = id => { $(id).classList.add('hidden'); document.body.style.overflow=''; };
 
 
   const IMAGE_LIMITS = {
     inputBytes: 20 * 1024 * 1024,
-    outputBytes: 450 * 1024,
-    maxWidth: 1280,
-    maxHeight: 1280,
+    outputBytes: 900 * 1024,
+    maxWidth: 1600,
+    maxHeight: 1600,
     quality: 0.84
   };
 
@@ -990,27 +149,6 @@
     const {error}=await db.storage.from(bucket).upload(path,compressed,{upsert:false,contentType:'image/webp',cacheControl:'31536000'});
     if(error)throw error;
     return db.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-  }
-
-  function normalizeLoginPhone(value=''){
-    const d=String(value||'').replace(/\D/g,'');
-    if(/^0\d{9}$/.test(d))return '+66'+d.slice(1);
-    if(/^66\d{9}$/.test(d))return '+'+d;
-    return null;
-  }
-  function phoneLoginEmail(phone=''){
-    const p=normalizeLoginPhone(phone);
-    return p ? p.slice(1)+'@phone.talad-kratumbaen.invalid' : null;
-  }
-  function setAuthMethod(method){
-    const form=$('authForm'); if(!form)return;
-    const phone=method==='phone';
-    form.elements.auth_method.value=phone?'phone':'email';
-    form.elements.email.required=!phone; form.elements.phone.required=phone;
-    $('authEmailLabel').classList.toggle('hidden',phone);
-    $('authPhoneLabel').classList.toggle('hidden',!phone);
-    $('authPhoneHelp').classList.toggle('hidden',!phone);
-    document.querySelectorAll('[data-auth-method]').forEach(b=>b.classList.toggle('active',b.dataset.authMethod===(phone?'phone':'email')));
   }
 
   function friendlyAuthError(message=''){
@@ -1134,7 +272,6 @@
       if(mapFilterMode==='featured'&&!shop.featured)return false;
       if(mapFilterMode==='promo'&&!visiblePromotionForShop(shop.id))return false;
       if(mapCategoryFilter!=='all'&&String(shop.category_id)!==String(mapCategoryFilter))return false;
-      if(shopDeliveryOnly&&!shopHasDelivery(shop))return false;
       return true;
     });
   }
@@ -1160,43 +297,19 @@
     const box=$('categoryButtons'), select=$('categorySelect');
     box.innerHTML='<button class="active" data-category="all">ทั้งหมด</button>'+categories.map(c=>`<button data-category="${esc(c.id)}">${esc(c.icon||'🏪')} ${esc(c.name)}</button>`).join('');
     select.innerHTML='<option value="">เลือกหมวดหมู่</option>'+categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-    box.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',async()=>{box.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');currentCategory=btn.dataset.category;await resetShopList({scroll:true});}));
+    box.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',async()=>{box.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');currentCategory=btn.dataset.category;await resetShopList();}));
     renderMapFilters();
   }
 
   async function loadShopIndex(){
     if(!db){ shopIndex=DEMO; return; }
-    const [shopResult,accessResult,settingResult]=await Promise.all([
-      db.from('market_shops')
-        .select('id,name,description,address,landmark,category_id,created_at,featured,latitude,longitude,opening_hours,temporarily_closed,open_24_hours,delivery,lineman,grab,shopeefood,category:market_categories(id,name,icon)')
-        .eq('status','approved')
-        .order('created_at',{ascending:false}),
-      db.from('market_order_shop_access').select('shop_id').eq('enabled',true).limit(5000),
-      db.from('market_shop_order_settings').select('shop_id').eq('enabled',true).limit(5000)
-    ]);
-    if(shopResult.error)throw shopResult.error;
-    shopIndex=shopResult.data||[];
-    if(accessResult.error||settingResult.error){
-      projectDeliveryShopIds=new Set();
-      console.debug('Delivery shop filter fallback:',accessResult.error?.message||settingResult.error?.message);
-    }else{
-      const allowed=new Set((accessResult.data||[]).map(row=>String(row.shop_id)));
-      projectDeliveryShopIds=new Set((settingResult.data||[]).map(row=>String(row.shop_id)).filter(id=>allowed.has(id)));
-    }
+    const {data,error}=await db.from('market_shops')
+      .select('id,name,description,address,landmark,category_id,created_at,featured,latitude,longitude,opening_hours,temporarily_closed,open_24_hours,category:market_categories(id,name,icon)')
+      .eq('status','approved')
+      .order('created_at',{ascending:false});
+    if(error)throw error;
+    shopIndex=data||[];
   }
-
-  function shopHasDelivery(shop){
-    return Boolean(
-      shop?.delivery||shop?.lineman||shop?.grab||shop?.shopeefood||
-      (globalDeliveryEnabled&&projectDeliveryShopIds.has(String(shop?.id||'')))
-    );
-  }
-
-  window.marketSetDeliveryShopFilter=async enabled=>{
-    shopDeliveryOnly=Boolean(enabled);
-    await resetShopList({scroll:true});
-    return shopDeliveryOnly;
-  };
 
   function orderedShopIndex(){
     const q=$('searchInput')?.value.trim().toLowerCase()||'';
@@ -1205,15 +318,9 @@
       if(q&&![shop.name,shop.description,shop.address,shop.category?.name].filter(Boolean).join(' ').toLowerCase().includes(q))return false;
       if(shopOnlyOpen&&openState(shop).open!==true)return false;
       if(shopOnlyPromo&&!visiblePromotionForShop(shop.id))return false;
-      if(shopDeliveryOnly&&!shopHasDelivery(shop))return false;
       return true;
     });
     list.sort((a,b)=>{
-      if(shopDeliveryOnly){
-        const aProject=globalDeliveryEnabled&&projectDeliveryShopIds.has(String(a?.id||''));
-        const bProject=globalDeliveryEnabled&&projectDeliveryShopIds.has(String(b?.id||''));
-        if(aProject!==bProject)return aProject?-1:1;
-      }
       const ar=ratingForShop(a.id),br=ratingForShop(b.id);
       if(shopSort==='rating')return (br.average-ar.average)||(br.count-ar.count);
       if(shopSort==='newest')return new Date(b.created_at||0)-new Date(a.created_at||0);
@@ -1474,32 +581,6 @@
       allBtn.classList.toggle('hidden',promotions.length<=6);
       allBtn.textContent=`ดูโปรโมชั่นทั้งหมด (${promotions.length})`;
     }
-    setupPromotionSwipeHint(featured.length);
-  }
-
-  function setupPromotionSwipeHint(count){
-    const grid=$('promotionGrid'),hint=$('promotionSwipeHint'),dots=$('promotionDots');
-    if(!grid||!hint||!dots)return;
-    const mobile=window.matchMedia?.('(max-width:760px)')?.matches;
-    const show=Boolean(mobile&&count>1);
-    hint.classList.toggle('hidden',!show);
-    if(!show){dots.innerHTML='';return;}
-    dots.innerHTML=Array.from({length:count},(_,i)=>`<i class="${i===0?'active':''}" aria-hidden="true"></i>`).join('');
-    const update=()=>{
-      const cards=Array.from(grid.querySelectorAll('.promo-card'));
-      if(!cards.length)return;
-      const center=grid.scrollLeft+grid.clientWidth/2;
-      let active=0,best=Infinity;
-      cards.forEach((card,i)=>{
-        const c=card.offsetLeft+card.offsetWidth/2;
-        const d=Math.abs(c-center);
-        if(d<best){best=d;active=i;}
-      });
-      dots.querySelectorAll('i').forEach((dot,i)=>dot.classList.toggle('active',i===active));
-      if(grid.scrollLeft>12)hint.classList.add('has-swiped');
-    };
-    grid.onscroll=update;
-    requestAnimationFrame(update);
   }
 
   function openAllPromotions(){
@@ -1570,7 +651,6 @@
       favorites.add(id);
     }
     favoriteShops=[...favorites].length?await fetchFullShopsByIds([...favorites]):[];
-    missionProgressCache=null;refreshMissionNav().catch(()=>{});
     renderShops(); renderRecommended(); renderFavoriteList();
     const detailShopId=$('reviewShopId')?.value;
     if(detailShopId===id){ const holder=$('detailFavoriteHolder'); if(holder)holder.innerHTML=favoriteButton(id,'detail-favorite'); }
@@ -1590,200 +670,17 @@
     renderFavoriteList(); openModal('favoritesModal');
   }
 
-  function recommendedCompactCard(s){
-    const rating=ratingForShop(s.id);
-    const cover=s.cover_url?`<img src="${esc(s.cover_url)}" alt="${esc(s.name)}" loading="lazy" onerror="this.remove()">`:'';
-    return `<article class="recommended-compact-card" data-id="${esc(s.id)}">
-      <div class="recommended-compact-image">${cover}</div>
-      <div class="recommended-compact-body">
-        <h3>${esc(s.name)}</h3>
-        <div class="rating-line">
-          <span>${stars(rating.average)}</span>
-          <b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b>
-          <small>${rating.count?`${rating.count} รีวิว`:'ยังไม่มีรีวิว'}</small>
-        </div>
-        <button type="button" class="recommended-detail-btn" data-action="details" data-shop-id="${esc(s.id)}">รายละเอียดเพิ่มเติม</button>
-      </div>
-    </article>`;
-  }
-
   function renderRecommended(){
     const box=$('recommendedGrid');
     if(!box)return;
     const list=recommendedShops();
-    box.innerHTML=list.length?list.map(s=>recommendedCompactCard(s)).join(''):'<div class="empty-inline">ยังไม่มีร้านแนะนำ</div>';
-    setupRecommendedSwipeHint(list.length);
-  }
-
-  function setupRecommendedSwipeHint(count){
-    const grid=$('recommendedGrid'),hint=$('recommendedSwipeHint'),dots=$('recommendedDots');
-    if(!grid||!hint||!dots)return;
-    const mobile=window.matchMedia?.('(max-width:760px)')?.matches;
-    const show=Boolean(mobile&&count>1);
-    hint.classList.toggle('hidden',!show);
-    if(!show){dots.innerHTML='';return;}
-    dots.innerHTML=Array.from({length:count},(_,i)=>`<i class="${i===0?'active':''}" aria-hidden="true"></i>`).join('');
-    const update=()=>{
-      const cards=Array.from(grid.querySelectorAll('.recommended-compact-card'));
-      if(!cards.length)return;
-      const center=grid.scrollLeft+grid.clientWidth/2;
-      let active=0,best=Infinity;
-      cards.forEach((card,i)=>{
-        const c=card.offsetLeft+card.offsetWidth/2;
-        const d=Math.abs(c-center);
-        if(d<best){best=d;active=i;}
-      });
-      dots.querySelectorAll('i').forEach((dot,i)=>dot.classList.toggle('active',i===active));
-      if(grid.scrollLeft>12)hint.classList.add('has-swiped');
-    };
-    grid.onscroll=update;
-    requestAnimationFrame(update);
-  }
-
-
-  let missionRewardCache=null;
-  async function loadMissionReward(force=false){
-    if(!db)return null;
-    if(missionRewardCache&&!force)return missionRewardCache;
-    try{
-      const {data,error}=await db.from('market_mission_settings').select('mission_active,reward_title,reward_detail,claim_note,reward_active,reward_claim_until,updated_at,coupon_id').eq('mission_key','mission_v1').maybeSingle();
-      if(error)throw error;
-      const result=data||{mission_active:true,reward_title:'',reward_detail:'',claim_note:'',reward_active:false,reward_claim_until:null,coupon_id:null};
-      if(result.coupon_id){
-        const {data:coupon}=await db.rpc('market_coupon_get',{p_coupon_id:result.coupon_id});
-        result.coupon=coupon&&typeof coupon==='object'?coupon:null;
-      }
-      return missionRewardCache=result;
-    }catch(_e){return missionRewardCache={mission_active:true,reward_title:'',reward_detail:'',claim_note:'',reward_active:false,reward_claim_until:null,coupon_id:null,coupon:null};}
-  }
-  function missionRewardHtml(reward,allDone=false){
-    if(!reward?.reward_active||!reward?.reward_title)return '';
-    return `<div class="mission-reward ${allDone?'earned':''}"><div class="mission-reward-icon">🎁</div><div><small>${allDone?'รางวัลของคุณ':'รางวัลเมื่อทำครบ'}</small><b>${esc(reward.reward_title)}</b>${reward.reward_detail?`<p>${esc(reward.reward_detail)}</p>`:''}${allDone&&reward.claim_note?`<em>วิธีรับ: ${esc(reward.claim_note)}</em>`:''}</div></div>`;
-  }
-
-  function missionRewardClaimExpired(settings){
-    if(!settings?.reward_claim_until)return false;
-    const t=new Date(settings.reward_claim_until).getTime();
-    return Number.isFinite(t)&&Date.now()>t;
-  }
-  function missionAvailable(settings){
-    return settings?.mission_active!==false&&!missionRewardClaimExpired(settings);
-  }
-  async function loadMissionRewardAdmin(){
-    if(profile?.role!=='admin')return;
-    const form=$('missionRewardForm');if(!form)return;
-    ensureMissionCouponAdminUI();
-    const r=await loadMissionReward(true);
-    form.elements.mission_active.checked=r?.mission_active!==false;
-    form.elements.reward_title.value=r?.reward_title||'';
-    form.elements.reward_detail.value=r?.reward_detail||'';
-    form.elements.claim_note.value=r?.claim_note||'';
-    form.elements.reward_active.checked=Boolean(r?.reward_active);
-    if(form.elements.reward_claim_until)form.elements.reward_claim_until.value=toLocalDateTimeInput(r?.reward_claim_until);
-    await fillMissionCouponShopOptions(r?.coupon?.shop_id||'');
-    if(form.elements.mission_coupon_active)form.elements.mission_coupon_active.checked=Boolean(r?.coupon?.active);
-    if(form.elements.mission_coupon_discount_type)form.elements.mission_coupon_discount_type.value=r?.coupon?.discount_type||'fixed';
-    if(form.elements.mission_coupon_discount_value)form.elements.mission_coupon_discount_value.value=r?.coupon?.discount_value??'';
-    if(form.elements.mission_coupon_min_spend)form.elements.mission_coupon_min_spend.value=r?.coupon?.min_spend??0;
-    if(form.elements.mission_coupon_max_discount)form.elements.mission_coupon_max_discount.value=r?.coupon?.max_discount??'';
-    if(form.elements.mission_coupon_channel)form.elements.mission_coupon_channel.value=r?.coupon?.channel||'both';
-    if(form.elements.mission_coupon_ends_at)form.elements.mission_coupon_ends_at.value=toLocalDateTimeInput(r?.coupon?.ends_at);
-    const st=$('missionRewardAdminStatus');if(st)st.textContent=r?.updated_at?`อัปเดตล่าสุด ${new Date(r.updated_at).toLocaleString('th-TH')}`:'ยังไม่ได้ตั้งรางวัล';
-  }
-  async function saveMissionReward(ev){
-    ev.preventDefault();if(!db||profile?.role!=='admin')return alert('เฉพาะ Admin เท่านั้น');
-    const f=ev.currentTarget,btn=f.querySelector('button[type="submit"]');
-    const couponActive=Boolean(f.elements.mission_coupon_active?.checked);
-    const payload={p_mission_active:f.elements.mission_active.checked,p_reward_title:f.elements.reward_title.value.trim(),p_reward_detail:f.elements.reward_detail.value.trim(),p_claim_note:f.elements.claim_note.value.trim(),p_reward_active:f.elements.reward_active.checked,p_reward_claim_until:f.elements.reward_claim_until?.value?new Date(f.elements.reward_claim_until.value).toISOString():null,
-      p_coupon_active:couponActive,p_coupon_shop_id:f.elements.mission_coupon_shop_id?.value||null,p_coupon_discount_type:f.elements.mission_coupon_discount_type?.value||'fixed',p_coupon_discount_value:Number(f.elements.mission_coupon_discount_value?.value||0),p_coupon_min_spend:Number(f.elements.mission_coupon_min_spend?.value||0),p_coupon_max_discount:f.elements.mission_coupon_max_discount?.value?Number(f.elements.mission_coupon_max_discount.value):null,p_coupon_channel:f.elements.mission_coupon_channel?.value||'both',p_coupon_ends_at:f.elements.mission_coupon_ends_at?.value?new Date(f.elements.mission_coupon_ends_at.value).toISOString():null};
-    if(payload.p_reward_active&&!payload.p_reward_title)return alert('กรุณาระบุชื่อรางวัลก่อนเปิดใช้งาน');
-    if(couponActive&&!payload.p_coupon_shop_id)return alert('กรุณาเลือกร้านสำหรับคูปอง Mission');
-    if(couponActive&&(!Number.isFinite(payload.p_coupon_discount_value)||payload.p_coupon_discount_value<=0))return alert('กรุณาระบุส่วนลดคูปองให้มากกว่า 0');
-    if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
-    try{const {error}=await db.rpc('market_admin_set_mission_reward',payload);if(error)throw error;missionRewardCache=null;missionProgressCache=null;await loadMissionRewardAdmin();await refreshMissionNav();if(!f.elements.mission_active.checked){closeModal('missionModal');closeModal('missionWelcomeModal');}alert('บันทึกการตั้งค่า Mission แล้ว');}
-    catch(err){alert('บันทึกรางวัลไม่สำเร็จ: '+(err.message||err));}
-    finally{if(btn){btn.disabled=false;btn.textContent='💾 บันทึกการตั้งค่า Mission';}}
-  }
-
-  const MISSION_V1=[
-    {id:'explorer',icon:'🔍',title:'นักสำรวจตลาด',detail:'เปิดดูรายละเอียดร้านไม่ซ้ำกัน 5 ร้าน',goal:5},
-    {id:'favorite',icon:'❤️',title:'ร้านที่ถูกใจ',detail:'เพิ่มร้านชื่นชอบ 3 ร้าน',goal:3},
-    {id:'review',icon:'⭐',title:'เสียงจากลูกค้า',detail:'รีวิวร้านค้า 1 ร้าน',goal:1},
-    {id:'buyer',icon:'🛍️',title:'อุดหนุนร้านในชุมชน',detail:'มีออเดอร์สำเร็จ 1 ออเดอร์',goal:1}
-  ];
-  let missionProgressCache=null;
-  async function recordMissionShopView(shopId){
-    if(!db||!session||!shopId)return;
-    try{await db.from('market_mission_shop_views').upsert({user_id:session.user.id,shop_id:shopId,last_viewed_at:new Date().toISOString()},{onConflict:'user_id,shop_id'});missionProgressCache=null;refreshMissionNav().catch(()=>{});}catch(_e){}
-  }
-  async function loadMissionProgress(force=false){
-    if(!session||!db)return null;if(missionProgressCache&&!force)return missionProgressCache;const uid=session.user.id;
-    const [{count:viewCount},{count:favCount},{count:reviewCount},{data:fulfilledCount,error:fulfilledError}]=await Promise.all([
-      db.from('market_mission_shop_views').select('shop_id',{count:'exact',head:true}).eq('user_id',uid),
-      db.from('market_favorites').select('shop_id',{count:'exact',head:true}).eq('user_id',uid),
-      db.from('market_reviews').select('id',{count:'exact',head:true}).eq('user_id',uid).eq('status','approved'),
-      db.rpc('market_mission_completed_order_count')
-    ]);
-    if(fulfilledError)throw fulfilledError;
-    const values={explorer:Number(viewCount||0),favorite:Number(favCount||0),review:Number(reviewCount||0),buyer:Number(fulfilledCount||0)};
-    const items=MISSION_V1.map(m=>({...m,value:Math.min(values[m.id]||0,m.goal),done:(values[m.id]||0)>=m.goal}));
-    return missionProgressCache={items,done:items.filter(x=>x.done).length,total:items.length,allDone:items.every(x=>x.done)};
-  }
-  async function refreshMissionNav(){
-    const btn=$('missionBtn'),count=$('missionNavCount');if(!btn)return;
-    if(!session){btn.classList.add('hidden');if(count)count.textContent='';return;}
-    try{
-      const settings=await loadMissionReward(true);
-      const active=missionAvailable(settings);
-      btn.classList.toggle('hidden',!active);
-      if(!active){if(count)count.textContent='';return;}
-      const p=await loadMissionProgress(true);if(count)count.textContent=p?`${p.done}/${p.total}`:'';
-    }catch(_e){btn.classList.add('hidden');if(count)count.textContent='';}
-  }
-  async function showMissionWelcomeOncePerDay(){
-    const modal=$('missionWelcomeModal');
-    if(!modal)return;
-    const settings=await loadMissionReward(true);
-    if(!missionAvailable(settings))return;
-    const now=new Date();
-    const dayKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    const storageKey='market_mission_welcome_last_seen_v0_5_21_8';
-    try{
-      if(localStorage.getItem(storageKey)===dayKey)return;
-    }catch(_e){}
-    const rewardBox=$('missionWelcomeReward');
-    if(rewardBox){
-      if(settings?.reward_active&&settings?.reward_title){rewardBox.innerHTML=`<small>🎁 รางวัลเมื่อทำ Mission ครบ</small><b>${esc(settings.reward_title)}</b>${settings.reward_detail?`<p>${esc(settings.reward_detail)}</p>`:''}`;rewardBox.classList.remove('hidden');}
-      else{rewardBox.innerHTML='';rewardBox.classList.add('hidden');}
-    }
-    setTimeout(()=>{
-      // Do not interrupt another modal that is already open (e.g. password recovery/direct-link flow).
-      const anotherOpen=[...document.querySelectorAll('.modal:not(.hidden)')].some(x=>x.id!=='missionWelcomeModal');
-      if(anotherOpen)return;
-      openModal('missionWelcomeModal');
-      // Mark as seen only after the popup is actually opened.
-      try{localStorage.setItem(storageKey,dayKey);}catch(_e){}
-    },1400);
-  }
-
-  async function openMission(){
-    const settings=await loadMissionReward(true);
-    if(settings?.mission_active===false)return alert('ขณะนี้ Mission ยังไม่ได้เปิดใช้งาน');
-    if(missionRewardClaimExpired(settings))return alert('Mission นี้สิ้นสุดระยะเวลารับรางวัลแล้ว');
-    if(!session){openModal('authModal');return alert('กรุณาเข้าสู่ระบบก่อนทำ Mission');}
-    const box=$('missionContent');openModal('missionModal');if(box)box.innerHTML='<h2>🎯 Mission กระทุ่มแบน</h2><p>กำลังตรวจสอบความคืบหน้า...</p>';
-    try{const [p,reward]=await Promise.all([loadMissionProgress(true),loadMissionReward(true)]);let missionCouponClaimed=false;if(p.allDone&&db){try{const {data,error}=await db.rpc('market_sync_mission_coupon_claim');if(error)throw error;missionCouponClaimed=Boolean(data?.claimed);}catch(syncErr){console.warn('mission coupon sync skipped',syncErr);}}const percent=Math.round(p.done/p.total*100);
-      box.innerHTML=`<div class="mission-head"><div><span class="eyebrow red">ภารกิจเริ่มต้น</span><h2>🎯 Mission กระทุ่มแบน</h2><p>ลองใช้ฟังก์ชันต่าง ๆ ของตลาดให้ครบ ${p.total} ภารกิจ</p></div><strong class="mission-score">${p.done}/${p.total}</strong></div>${missionRewardHtml(reward,p.allDone)}<div class="mission-progress"><span style="width:${percent}%"></span></div><div class="mission-list">${p.items.map(m=>`<article class="mission-item ${m.done?'done':''}"><div class="mission-icon">${m.done?'✅':m.icon}</div><div class="mission-copy"><b>${esc(m.title)}</b><small>${esc(m.detail)}</small><div class="mission-mini-progress"><span style="width:${Math.min(100,Math.round(m.value/m.goal*100))}%"></span></div></div><strong>${m.value}/${m.goal}</strong></article>`).join('')}</div>${p.allDone?`<div class="mission-complete">🎉 Mission สำเร็จครบแล้ว!<small>${missionCouponClaimed?'คูปองรางวัลถูกเก็บไว้ใน “คูปองของฉัน” อัตโนมัติแล้ว':reward?.reward_active&&reward?.reward_title?'คุณได้รับสิทธิ์รางวัลตามที่แสดงด้านบน':'ขณะนี้ Admin ยังไม่ได้เปิดรางวัลสำหรับ Mission นี้'}</small>${missionCouponClaimed?'<button type="button" id="openMissionCouponWalletBtn" class="primary" style="margin-top:10px">🎟️ เปิดคูปองของฉัน</button>':''}</div>`:'<div class="mission-note">ระบบตรวจ Mission ให้อัตโนมัติ ไม่ต้องกดยืนยันว่าทำแล้ว</div>'}`;
-      $('openMissionCouponWalletBtn')?.addEventListener('click',()=>{closeModal('missionModal');openCouponWallet();});
-    }catch(err){const msg=err?.message||String(err||'ไม่ทราบสาเหตุ');box.innerHTML=`<h2>🎯 Mission กระทุ่มแบน</h2><div class="mission-note">โหลด Mission ไม่สำเร็จ<br><small>${esc(msg)}</small></div>`;console.error('Mission load failed',err);}
+    box.innerHTML=list.length?list.map(s=>shopCard(s)).join(''):'<div class="empty-inline">ยังไม่มีร้านแนะนำ</div>';
   }
 
   async function openShopDetails(shopId){
-    trackAnalytics('shop_view',shopId);
     let shop=null;
     try{shop=await getFullShop(shopId);}catch(err){console.error(err);}
     if(!shop)return alert('ไม่พบข้อมูลร้านค้านี้');
-    recordMissionShopView(shopId);
     const promo=visiblePromotionForShop(shopId);
     const rating=ratingForShop(shopId);
     const mapsTarget=googleMapsTarget(shop);
@@ -1812,53 +709,14 @@
       ${shop.address?`<p class="detail-address">📍 ${esc(shop.address)}</p>`:''}
       ${shop.landmark?`<p class="detail-landmark"><b>📍 จุดสังเกต:</b> ${esc(shop.landmark)}</p>`:''}
       ${promo?`<div class="detail-promo"><b>🔥 ${esc(promo.title)}</b><span>${esc(promo.description||'')}</span><small>⏰ ${esc(promotionTimingText(promo))}</small></div>`:''}
-      <div id="shopPublicCouponBox" data-shop-coupons="${esc(shop.id)}"></div>
       ${deliveryButtons?`<div class="detail-order-grid">${deliveryButtons}</div>`:''}
       <div class="detail-action-grid">${contactButtons}</div>
-      <div class="shop-share-actions">
-        <button type="button" data-share-shop="${esc(shop.id)}">↗️ แชร์ร้านนี้</button>
-        <button type="button" data-copy-shop-link="${esc(shop.id)}">🔗 คัดลอกลิงก์ร้าน</button>
-        <button type="button" data-browse-other-shops>🏪 ดูร้านอื่นในตลาด</button>
-      </div>
     `;
     $('reviewShopId').value=shopId;
     $('reviewShopName').textContent=shop.name;
     closeModal('promotionDetailModal');
     openModal('shopDetailModal');
-    await Promise.all([loadShopReviews(shopId),loadPublicShopCoupons(shopId)]);
-  }
-
-  function shopDirectUrl(shopId){
-    const u=new URL(window.location.href);
-    u.searchParams.set('shop',String(shopId));
-    ['order','group','job','rider_job'].forEach(k=>u.searchParams.delete(k));
-    u.hash='';
-    return u.toString();
-  }
-  async function copyShopDirectLink(shopId){
-    const url=shopDirectUrl(shopId);
-    try{await navigator.clipboard.writeText(url);showNotice('คัดลอกลิงก์ร้านแล้ว');}
-    catch(_e){prompt('คัดลอกลิงก์ร้านนี้',url);}
-  }
-  async function shareShopDirectLink(shopId){
-    const shop=[...shops,...shopIndex].find(s=>String(s.id)===String(shopId));
-    const url=shopDirectUrl(shopId);
-    if(navigator.share){
-      try{await navigator.share({title:shop?.name||'ร้านค้าในตลาดกระทุ่มแบน',text:`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`,url});return;}catch(e){if(e?.name==='AbortError')return;}
-    }
-    copyShopDirectLink(shopId);
-  }
-  function browseOtherShops(){
-    closeModal('shopDetailModal');
-    const u=new URL(window.location.href);u.searchParams.delete('shop');
-    history.replaceState({},'',u.pathname+(u.searchParams.toString()?`?${u.searchParams}`:'')+u.hash);
-    document.getElementById('shops')?.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-  async function handleShopDirectLink(){
-    const shopId=new URLSearchParams(location.search).get('shop');
-    if(!shopId)return;
-    // Direct shop links land on that shop, but the rest of the marketplace remains available.
-    await openShopDetails(shopId);
+    await loadShopReviews(shopId);
   }
 
   async function loadShopReviews(shopId,targetId='reviewList'){
@@ -1867,21 +725,13 @@
     if(!db){box.innerHTML='<p>ยังไม่มีรีวิว</p>';return;}
 
     const id=String(shopId||'').trim();
-    let data=null,error=null;
-    const rpcResult=await db.rpc('market_public_shop_reviews',{p_shop_id:id});
-    if(!rpcResult.error){
-      data=Array.isArray(rpcResult.data)?rpcResult.data:(rpcResult.data||[]);
-    }else{
-      console.warn('market_public_shop_reviews fallback',rpcResult.error);
-      const fallbackDirect=await db
-        .from('market_reviews')
-        .select('id,shop_id,reviewer_name,rating,comment,status,created_at')
-        .eq('shop_id',id)
-        .eq('status','approved')
-        .order('created_at',{ascending:false})
-        .limit(50);
-      data=fallbackDirect.data; error=fallbackDirect.error;
-    }
+    let {data,error}=await db
+      .from('market_reviews')
+      .select('id,shop_id,reviewer_name,rating,comment,status,created_at')
+      .eq('shop_id',id)
+      .eq('status','approved')
+      .order('created_at',{ascending:false})
+      .limit(50);
 
     // Fallback สำหรับกรณี client/query ไม่คืนแถว ทั้งที่สถิติบอกว่าร้านมีรีวิว
     if(!error && (!data || !data.length) && (reviewStats[id]?.count||0)>0){
@@ -1932,7 +782,7 @@
     form.elements.existing_image_url.value=promotion?.image_url||'';
     form.elements.promotion_image.value='';
     const preview=$('promotionImagePreview');
-    if(preview){preview.innerHTML=promotion?.image_url?`<img src="${esc(promotion.image_url)}" alt="รูปโปรโมชั่นปัจจุบัน"><small>รูปปัจจุบัน — เลือกรูปใหม่เพื่อแทนที่</small>`:'<small>ระบบจะย่อรูปอัตโนมัติให้ไม่เกินประมาณ 450 KB</small>';}
+    if(preview){preview.innerHTML=promotion?.image_url?`<img src="${esc(promotion.image_url)}" alt="รูปโปรโมชั่นปัจจุบัน"><small>รูปปัจจุบัน — เลือกรูปใหม่เพื่อแทนที่</small>`:'<small>ระบบจะย่อรูปอัตโนมัติให้ไม่เกินประมาณ 900 KB</small>';}
     form.elements.starts_at.value=toLocalDateTimeInput(promotion?.starts_at);
     form.elements.ends_at.value=toLocalDateTimeInput(promotion?.ends_at);
     form.elements.active.checked=promotion ? promotion.active!==false : true;
@@ -1984,8 +834,7 @@
     $('managePromotionShopName').textContent=shop?.name||'ร้านของฉัน';
     $('managePromotionShopId').value=shopId;
     openModal('managePromotionsModal');
-    ensureShopCouponManagerUI();
-    await Promise.all([loadOwnerPromotions(shopId),loadShopCoupons(shopId)]);
+    await loadOwnerPromotions(shopId);
   }
 
   async function loadOwnerPromotions(shopId){
@@ -2065,7 +914,7 @@
       }
       let uploadedImageUrl='';
       if(imageFile&&imageFile.size){
-        uploadedImageUrl=await uploadCompressedImage(imageFile,'promotion-images',`${session.user.id}/${shopId}`,{maxWidth:1200,maxHeight:900,maxBytes:450*1024});
+        uploadedImageUrl=await uploadCompressedImage(imageFile,'promotion-images',`${session.user.id}/${shopId}`,{maxWidth:1600,maxHeight:1200,maxBytes:900*1024});
         payload.image_url=uploadedImageUrl;
       }
       const result=promotionId
@@ -2091,16 +940,10 @@
     }
     const form=ev.currentTarget,fd=new FormData(form);
     const shopId=String(fd.get('shop_id')||'');
-    if(!currentDisplayName()){
-      alert('ก่อนรีวิว กรุณาตั้ง “ชื่อที่ใช้แสดงในระบบ” ก่อน');
-      closeModal('reviewModal');
-      openProfileNameEditor();
-      return;
-    }
     const payload={
       shop_id:shopId,
       user_id:session.user.id,
-      reviewer_name:currentDisplayName()||'สมาชิกตลาด',
+      reviewer_name:profile?.display_name||session.user.email?.split('@')[0]||'สมาชิกตลาด',
       rating:Number(fd.get('rating')),
       comment:String(fd.get('comment')||'').trim(),
       status:'approved'
@@ -2114,7 +957,7 @@
       showNotice('บันทึกรีวิวของคุณแล้ว ขอบคุณที่ช่วยแนะนำร้านในชุมชน');
       await loadReviewStats();
       await loadShopReviews(shopId);
-      renderShops();renderRecommended();missionProgressCache=null;refreshMissionNav().catch(()=>{});
+      renderShops();renderRecommended();
     }catch(err){alert('ส่งรีวิวไม่สำเร็จ: '+friendlyAuthError(err.message));}
     finally{btn.disabled=false;btn.textContent='ส่งรีวิว';}
   }
@@ -2165,68 +1008,6 @@
     renderShops();
   }
 
-
-  // v0.5.22.146: shared, on-demand location permission/help UI.
-  // Geolocation is requested only after the user invokes a feature that needs it.
-  window.KBLocationHelp = window.KBLocationHelp || {
-    close(){
-      document.getElementById('kbLocationHelpModal')?.remove();
-    },
-    show({error,retry,context='ฟังก์ชันนี้'}={}){
-      this.close();
-      const code=Number(error?.code||0);
-      const denied=code===1;
-      const unavailable=code===2;
-      const isiOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isAndroid=/Android/i.test(navigator.userAgent);
-      let title='📍 กรุณาเปิดการเข้าถึงตำแหน่ง';
-      let detail=denied
-        ? `คุณยังไม่ได้อนุญาตให้ใช้ตำแหน่งสำหรับ ${context}`
-        : unavailable
-          ? 'ไม่พบตำแหน่งปัจจุบัน กรุณาเปิด GPS / Location Services ของเครื่อง'
-          : 'ยังไม่สามารถอ่านตำแหน่งได้ กรุณาตรวจสอบการตั้งค่าตำแหน่งแล้วลองอีกครั้ง';
-      let steps=isiOS
-        ? 'iPhone/iPad: เปิด Settings → Privacy & Security → Location Services และตรวจสอบสิทธิ์ของ Safari/แอปที่กำลังใช้งาน'
-        : isAndroid
-          ? 'Android: เปิด Location ของเครื่อง และตรวจสอบสิทธิ์ Location ของ Chrome/แอปที่กำลังใช้งาน'
-          : 'เบราว์เซอร์: เปิดสิทธิ์ Location ของเว็บไซต์นี้จากไอคอนด้านซ้ายของแถบที่อยู่ แล้วลองอีกครั้ง';
-      const wrap=document.createElement('div');
-      wrap.id='kbLocationHelpModal';
-      wrap.setAttribute('role','dialog');
-      wrap.setAttribute('aria-modal','true');
-      wrap.innerHTML=`<div class="kb-location-help-card">
-        <button type="button" class="kb-location-help-x" aria-label="ปิด">×</button>
-        <h3>${title}</h3>
-        <p>${detail}</p>
-        <div class="kb-location-help-steps">${steps}</div>
-        <div class="kb-location-help-actions">
-          <button type="button" class="kb-location-help-cancel">ไว้ภายหลัง</button>
-          <button type="button" class="kb-location-help-retry">ลองอีกครั้ง</button>
-        </div>
-      </div>`;
-      Object.assign(wrap.style,{position:'fixed',inset:'0',zIndex:'2147483646',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:'18px'});
-      const card=wrap.querySelector('.kb-location-help-card');
-      Object.assign(card.style,{width:'min(440px,100%)',maxHeight:'85vh',overflow:'auto',background:'#fff',borderRadius:'18px',padding:'22px',boxShadow:'0 18px 60px rgba(0,0,0,.28)',position:'relative',color:'#222'});
-      Object.assign(wrap.querySelector('h3').style,{margin:'0 32px 10px 0',fontSize:'20px'});
-      Object.assign(wrap.querySelector('p').style,{margin:'0 0 12px',lineHeight:'1.55'});
-      Object.assign(wrap.querySelector('.kb-location-help-steps').style,{background:'#f6f7f9',borderRadius:'12px',padding:'12px',fontSize:'14px',lineHeight:'1.55'});
-      Object.assign(wrap.querySelector('.kb-location-help-actions').style,{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'16px',flexWrap:'wrap'});
-      for(const b of wrap.querySelectorAll('button')) Object.assign(b.style,{border:'0',borderRadius:'10px',padding:'10px 14px',fontWeight:'700',cursor:'pointer'});
-      Object.assign(wrap.querySelector('.kb-location-help-retry').style,{background:'#d71920',color:'#fff'});
-      Object.assign(wrap.querySelector('.kb-location-help-cancel').style,{background:'#eee',color:'#333'});
-      Object.assign(wrap.querySelector('.kb-location-help-x').style,{position:'absolute',right:'12px',top:'10px',background:'transparent',fontSize:'26px',padding:'2px 8px'});
-      const close=()=>this.close();
-      wrap.querySelector('.kb-location-help-x').addEventListener('click',close);
-      wrap.querySelector('.kb-location-help-cancel').addEventListener('click',close);
-      wrap.addEventListener('click',e=>{if(e.target===wrap)close();});
-      wrap.querySelector('.kb-location-help-retry').addEventListener('click',()=>{
-        close();
-        if(typeof retry==='function') setTimeout(retry,120);
-      });
-      document.body.appendChild(wrap);
-    }
-  };
-
   function requestUserLocation({sortNearby=false}={}){
     if(!navigator.geolocation)return alert('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง');
     const btn=$('nearBtn');
@@ -2240,7 +1021,8 @@
       },
       error=>{
         if(btn){btn.disabled=false;btn.textContent=old||'📍 ร้านใกล้ฉัน';}
-        window.KBLocationHelp?.show({error,retry:()=>requestUserLocation({sortNearby}),context:'ร้านใกล้ฉัน'});
+        const message=error.code===1?'กรุณาอนุญาตให้เว็บไซต์ใช้ตำแหน่งของคุณ':error.code===2?'ไม่พบตำแหน่งปัจจุบัน กรุณาเปิด GPS หรือ Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
+        alert(message);
       },
       {enableHighAccuracy:true,timeout:12000,maximumAge:60000}
     );
@@ -2250,46 +1032,19 @@
     return shops;
   }
 
-  async function resetShopList({scroll=false}={}){
-    await loadPublicShops({reset:true,scroll});
+  async function resetShopList(){
+    await loadPublicShops({reset:true});
   }
 
   function shopCard(s, dashboard=false){
     const category=s.category?.name||'ร้านค้า';
+    const mapsTarget=googleMapsTarget(s);
     const cover=s.cover_url?`<img src="${esc(s.cover_url)}" alt="${esc(s.name)}" loading="lazy" onerror="this.remove()">`:'';
-    const rating=ratingForShop(s.id);
-    const state=openState(s);
-
-    if(dashboard){
-      const status=`<span class="status-pill ${s.status==='approved'?'approved':''}">${s.status==='approved'?'เผยแพร่แล้ว':s.status==='rejected'?'ไม่อนุมัติ':'รอตรวจสอบ'}</span>`;
-      return `<article class="card" data-id="${esc(s.id)}">
-        <div class="card-img">${cover}<span class="tag">${esc(category)}</span></div>
-        <div class="card-body">
-          <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${esc(s.name)}</h3>${status}</div>
-          <div class="rating-line"><span>${stars(rating.average)}</span><b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b><small>${rating.count?`(${rating.count})`:'ยังไม่มีรีวิว'}</small></div>
-          <p>${esc(s.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p>
-          <div class="community-actions"><button data-action="details">ดูรายละเอียด</button><button data-action="review">⭐ รีวิว</button>${favoriteButton(s.id)}</div>
-          <div class="admin-actions"><button data-action="edit">แก้ไขร้าน</button><button class="manage-promo-btn" data-action="manage-promotions">⚙️ จัดการโปรโมชั่น</button><button data-action="promotion">+ เพิ่มโปรโมชั่น</button>${profile?.role==='admin'&&s.status!=='approved'?'<button data-action="approve">อนุมัติ</button>':''}${profile?.role==='admin'?`${s.status==='approved'&&s.delivery_access_known?`<button class="${s.delivery_access_enabled?'delivery-access-on':'delivery-access-off'}" data-action="admin-delivery-toggle" data-enabled="${s.delivery_access_enabled?'true':'false'}">${s.delivery_access_enabled?'🟢 Delivery เปิด':'⚪ Delivery ปิด'}</button>`:''}<button data-action="feature">${s.featured?'ยกเลิกแนะนำ':'แนะนำร้าน'}</button><button data-action="reject">ไม่อนุมัติ</button>`:''}</div>
-        </div>
-      </article>`;
-    }
-
-    return `<article class="card compact-shop-card" data-id="${esc(s.id)}">
-      <div class="card-img">${cover}</div>
-      <div class="card-body">
-        <h3>${esc(s.name)}</h3>
-        <div class="rating-line">
-          <span>${stars(rating.average)}</span>
-          <b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b>
-          <small>${rating.count?`${rating.count} รีวิว`:'ยังไม่มีรีวิว'}</small>
-        </div>
-        <p class="compact-shop-description">${esc(s.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p>
-        <div class="compact-shop-footer">
-          <div class="open-badge ${state.open===false?'closed':''}">${state.open===true?'🟢':state.open===false?'🔴':'🕒'} ${esc(state.text)}</div>
-          <button data-action="details">ดูรายละเอียด</button>
-        </div>
-      </div>
-    </article>`;
+    const status=dashboard?`<span class="status-pill ${s.status==='approved'?'approved':''}">${s.status==='approved'?'เผยแพร่แล้ว':s.status==='rejected'?'ไม่อนุมัติ':'รอตรวจสอบ'}</span>`:'';
+    const state=openState(s), loc=[s.zone,s.lock_number,s.floor].filter(Boolean).join(' • '), badges=serviceBadges(s);
+    const rating=ratingForShop(s.id), promo=visiblePromotionForShop(s.id), distance=shopDistance(s);
+    const distanceLine=distance==null?'':`<div class="distance-line">📏 ห่างจากคุณ ${esc(formatDistance(distance))}</div>`;
+    return `<article class="card" data-id="${esc(s.id)}"><div class="card-img">${cover}<span class="tag">${esc(category)}</span>${promo?`<span class="promo-ribbon ${promotionState(promo)==='upcoming'?'upcoming':''}">🔥 ${esc(promo.discount_text||'มีโปรโมชั่น')}<small>${esc(promotionTimingText(promo))}</small></span>`:''}</div><div class="card-body"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${esc(s.name)}</h3>${status}</div><div class="rating-line"><span>${stars(rating.average)}</span><b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b><small>${rating.count?`(${rating.count})`:'ยังไม่มีรีวิว'}</small></div><p>${esc(s.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p><div class="meta">📍 ${esc(s.address||'ตลาดกระทุ่มแบน')}</div>${loc?`<div class="location-line">🏪 ${esc(loc)}</div>`:''}${distanceLine}<div class="open-badge ${state.open===false?'closed':''}">${state.open===true?'🟢':state.open===false?'🔴':'🕒'} ${esc(state.text)}</div>${badges?`<div class="service-badges">${badges}</div>`:''}<div class="links">${mapsTarget?`<a class="go" href="${esc(mapsTarget.url)}" target="_blank" rel="noopener noreferrer">${esc(mapsTarget.label)}</a>`:''}${s.phone?`<a href="tel:${esc(s.phone)}">📞 โทร</a>`:''}${s.email?`<a href="mailto:${esc(s.email)}">✉️ Email</a>`:''}${s.facebook?`<a href="${esc(link(s.facebook,'facebook'))}" target="_blank" rel="noopener noreferrer">Facebook</a>`:''}${s.line?`<a href="${esc(link(s.line,'line'))}" target="_blank" rel="noopener noreferrer">LINE</a>`:''}${s.tiktok?`<a href="${esc(link(s.tiktok,'tiktok'))}" target="_blank" rel="noopener noreferrer">TikTok</a>`:''}${s.instagram?`<a href="${esc(link(s.instagram,'instagram'))}" target="_blank" rel="noopener noreferrer">Instagram</a>`:''}${s.website?`<a href="${esc(safeExternalUrl(s.website))}" target="_blank" rel="noopener noreferrer">🌐 Website</a>`:''}</div>${(s.lineman_url||s.grab_url||s.shopeefood_url)?`<div class="delivery-links">${s.lineman_url?`<a class="order-btn lineman" href="${esc(safeExternalUrl(s.lineman_url))}" target="_blank" rel="noopener noreferrer">สั่ง LINE MAN</a>`:''}${s.grab_url?`<a class="order-btn grab" href="${esc(safeExternalUrl(s.grab_url))}" target="_blank" rel="noopener noreferrer">สั่ง GrabFood</a>`:''}${s.shopeefood_url?`<a class="order-btn shopee" href="${esc(safeExternalUrl(s.shopeefood_url))}" target="_blank" rel="noopener noreferrer">สั่ง ShopeeFood</a>`:''}</div>`:''}<div class="community-actions"><button data-action="details">ดูรายละเอียด</button><button data-action="review">⭐ รีวิว</button>${favoriteButton(s.id)}</div>${dashboard?`<div class="admin-actions"><button data-action="edit">แก้ไขร้าน</button><button class="manage-promo-btn" data-action="manage-promotions">⚙️ จัดการโปรโมชั่น</button><button data-action="promotion">+ เพิ่มโปรโมชั่น</button>${profile?.role==='admin'&&s.status!=='approved'?'<button data-action="approve">อนุมัติ</button>':''}${profile?.role==='admin'?`<button data-action="feature">${s.featured?'ยกเลิกแนะนำ':'แนะนำร้าน'}</button><button data-action="reject">ไม่อนุมัติ</button>`:''}</div>`:''}</div></article>`;
   }
 
   function renderShops(){
@@ -2366,229 +1121,21 @@
     }
   }
 
-
-  function cleanDisplayName(value=''){
-    return String(value||'').replace(/\s+/g,' ').trim().slice(0,50);
-  }
-
-  function currentDisplayName(){
-    return cleanDisplayName(profile?.display_name||session?.user?.user_metadata?.display_name||'');
-  }
-
-  async function saveMyDisplayName(name,{silent=false}={}){
-    if(!db||!session?.user?.id)throw new Error('กรุณาเข้าสู่ระบบก่อน');
-    const displayName=cleanDisplayName(name);
-    if(displayName.length<2)throw new Error('กรุณาตั้งชื่ออย่างน้อย 2 ตัวอักษร');
-    const {data,error}=await db.rpc('market_set_my_display_name',{p_display_name:displayName});
-    if(error)throw error;
-    const {data:p,error:profileError}=await db.from('market_profiles').select('*').eq('id',session.user.id).maybeSingle();
-    if(profileError)throw profileError;
-    profile=p;
-    try{await db.auth.updateUser({data:{display_name:displayName,terms_version:'1.0',terms_accepted_at:new Date().toISOString()}});}catch(_err){}
-    updateAccountUI();
-    fillProfileDisplayName();
-    await loadMyRiderApplication();
-    if(!silent)alert('บันทึกชื่อที่ใช้แสดงเรียบร้อยแล้ว');
-    return data;
-  }
-
-  function fillProfileDisplayName(){
-    const form=$('profileDisplayNameForm');
-    if(!form)return;
-    const name=currentDisplayName();
-    form.elements.display_name.value=name;
-    const status=$('profileNameStatus');
-    if(status)status.textContent=name?`แสดงเป็น “${name}”`:'ยังไม่ได้ตั้งชื่อ';
-  }
-
-  function openProfileNameEditor(){
-    if(!session)return openModal('authModal');
-    const form=$('mobileProfileDisplayNameForm');
-    if(form?.elements?.display_name)form.elements.display_name.value=currentDisplayName();
-    openModal('profileNameModal');
-    setTimeout(()=>form?.elements?.display_name?.focus(),80);
-  }
-
-  function nativePushAppId(){
-    try{
-      const appId=String(window.MarketNativeAlert?.getAppId?.()||'').trim();
-      if(appId==='com.krathumbaen.together'||appId==='com.krathumbaen.together.test') return appId;
-    }catch(_err){}
-    // Existing TEST Android builds do not expose getAppId(), so keep their current identity.
-    return 'com.krathumbaen.together.test';
-  }
-
-  // R16: local Native audio test helper. No order is created and no Push is sent.
-  // This is intentionally exposed only as a diagnostic API; normal web/PWA behavior is unchanged.
-  window.marketNativeAudioTest={
-    appId:()=>nativePushAppId(),
-    order:()=>{try{window.MarketNativeAlert?.testOrderAlert?.();return true}catch(_err){return false}},
-    rider:()=>{try{window.MarketNativeAlert?.testRiderAlert?.();return true}catch(_err){return false}},
-    stop:()=>{try{if(window.MarketNativeAlert?.stopAlert)window.MarketNativeAlert.stopAlert();else window.MarketNativeAlert?.stopRiderAlert?.();return true}catch(_err){return false}}
-  };
-
-  async function syncNativePushToken(){
-    if(!db || !session?.user?.id) return;
-    const token=String(window.marketNativeFcmToken||'').trim();
-    if(!token) return;
-    try{
-      const payload={
-        user_id:session.user.id,
-        fcm_token:token,
-        platform:'android',
-        app_id:nativePushAppId(),
-        device_name:String(navigator.userAgent||'Android').slice(0,250),
-        is_active:true,
-        updated_at:new Date().toISOString()
-      };
-      const {error}=await db.from('market_native_push_tokens')
-        .upsert(payload,{onConflict:'fcm_token'});
-      if(error) throw error;
-      console.log('[NativePush] token synced for signed-in user');
-    }catch(err){
-      console.warn('[NativePush] token sync failed',err);
-    }
-  }
-
-  window.addEventListener('market:native-push-registration',()=>{
-    setTimeout(()=>syncNativePushToken(),0);
-  });
-
-  async function deactivateNativePushToken(){
-    if(!db || !session?.user?.id) return;
-    const token=String(window.marketNativeFcmToken||'').trim();
-    if(!token) return;
-    try{
-      const {error}=await db.from('market_native_push_tokens')
-        .update({is_active:false,updated_at:new Date().toISOString()})
-        .eq('fcm_token',token)
-        .eq('user_id',session.user.id);
-      if(error) throw error;
-      console.log('[NativePush] token deactivated before sign-out');
-    }catch(err){
-      console.warn('[NativePush] token deactivate failed',err);
-    }
-  }
-
-
   async function refreshAuth(){
     if(!db){ updateAccountUI(); return; }
     const {data}=await db.auth.getSession(); session=data.session;
     profile=null;
-    if(session){
-      const {data:p}=await db.from('market_profiles').select('*').eq('id',session.user.id).maybeSingle();profile=p;
-      const metadataName=cleanDisplayName(session.user.user_metadata?.display_name||'');
-      if(!cleanDisplayName(profile?.display_name)&&metadataName){
-        try{await saveMyDisplayName(metadataName,{silent:true});}catch(err){console.warn('display name metadata sync skipped',err);}
-      }
-    }
+    if(session){const {data:p}=await db.from('market_profiles').select('*').eq('id',session.user.id).maybeSingle();profile=p;}
     updateAccountUI();
-    fillProfileDisplayName();
-    await loadMyRiderApplication();
-    if(myRiderApplication?.status==='approved'&&myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
     await loadFavorites();
     renderShops(); renderRecommended();
-    if(session){
-      await loadDashboard();
-      await syncNativePushToken();
-    }
+    if(session) await loadDashboard();
   }
 
   function updateAccountUI(){
-    document.body.classList.toggle('guest-session',!session);
-    const accountBtn=$('accountBtn');
-    const headerUserName=$('headerUserName');
-    if(accountBtn){
-      accountBtn.innerHTML=session
-        ? '<span class="nav-ico">🏪</span><span class="nav-label">ร้านของฉัน</span>'
-        : '<span class="nav-ico">👤</span><span class="nav-label">เข้าสู่ระบบ</span>';
-    }
-    if(headerUserName){
-      headerUserName.textContent=session?(currentDisplayName()||'สมาชิก'):'';
-      headerUserName.classList.toggle('hidden',!session);
-      headerUserName.title=session?'แตะเพื่อแก้ไขชื่อ':'';
-      headerUserName.setAttribute('role',session?'button':'status');
-      headerUserName.tabIndex=session?0:-1;
-    }
+    $('accountBtn').textContent=session?(profile?.display_name||session.user.email):'เข้าสู่ระบบ';
     $('dashboard').classList.toggle('hidden',!session);
     const favBtn=$('favoritesBtn'); if(favBtn)favBtn.classList.toggle('hidden',!session);
-    const missionBtn=$('missionBtn'); if(missionBtn)missionBtn.classList.add('hidden');
-    ensureCouponWalletUI();
-    if(session)refreshMissionNav().catch(()=>{});
-  }
-
-
-
-  let adminActiveView='home';
-  let adminPendingShops=[];
-  let adminAllShops=[];
-  function adminShopMatchesSearch(shop,query){
-    if(!query)return true;
-    const statusText=({pending:'รออนุมัติ pending',approved:'อนุมัติแล้ว approved',rejected:'ไม่อนุมัติ rejected'})[shop?.status]||shop?.status||'';
-    const searchable=[shop?.name,shop?.category?.name,shop?.phone,shop?.address,shop?.landmark,shop?.zone,statusText]
-      .filter(Boolean).join(' ').toLocaleLowerCase('th');
-    return searchable.includes(query);
-  }
-  function renderAdminShopLists(){
-    const input=$('adminShopSearchInput');
-    const query=String(input?.value||'').trim().toLocaleLowerCase('th');
-    const pending=adminPendingShops.filter(shop=>adminShopMatchesSearch(shop,query));
-    const all=adminAllShops.filter(shop=>adminShopMatchesSearch(shop,query));
-    const pendingGrid=$('pendingGrid'),adminAllGrid=$('adminAllGrid'),status=$('adminShopSearchStatus'),clear=$('adminShopSearchClear');
-    if(pendingGrid)pendingGrid.innerHTML=pending.length?pending.map(s=>shopCard(s,true)).join(''):`<p>${query?'ไม่พบร้านรออนุมัติที่ตรงกับคำค้น':'ไม่มีร้านรออนุมัติ'}</p>`;
-    if(adminAllGrid)adminAllGrid.innerHTML=all.length?all.map(s=>shopCard(s,true)).join(''):`<p>${query?'ไม่พบร้านค้าที่ตรงกับคำค้น':'ยังไม่มีร้านค้า'}</p>`;
-    if(status)status.textContent=query?`พบ ${all.length} ร้าน จากทั้งหมด ${adminAllShops.length} ร้าน${pending.length?` • รออนุมัติ ${pending.length} ร้าน`:''}`:`ร้านค้าทั้งหมด ${adminAllShops.length} ร้าน • รออนุมัติ ${adminPendingShops.length} ร้าน`;
-    if(clear)clear.classList.toggle('hidden',!query);
-  }
-  function adminViewHeader(title,subtitle=''){
-    return `<div class="admin-view-head"><div><h3>${title}</h3>${subtitle?`<small class="muted">${subtitle}</small>`:''}</div><button type="button" class="ghost admin-back-home" data-admin-nav="home">← เมนู Admin</button></div>`;
-  }
-  function showAdminView(view='home'){
-    const panel=$('adminPanel'); if(!panel)return;
-    adminActiveView=view;
-    panel.querySelectorAll('[data-admin-view]').forEach(el=>el.classList.toggle('hidden',el.dataset.adminView!==view));
-    panel.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===view));
-    const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
-    const t=$('dashboardTitle');if(t&&profile?.role==='admin')t.textContent=titles[view]||'ศูนย์ควบคุม Admin';
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-  function ensureAdminControlCenter(){
-    const panel=$('adminPanel');if(!panel||profile?.role!=='admin')return;
-    if($('adminControlCenter'))return;
-
-    const nav=document.createElement('div');nav.id='adminControlCenter';nav.className='admin-control-center';
-    nav.innerHTML=`<div class="admin-control-title"><div><span class="eyebrow red">Admin</span><h3>ศูนย์ควบคุมระบบ</h3><small class="muted">เลือกเมนูที่ต้องการจัดการ ไม่ต้องเลื่อนหาทุกระบบในหน้าเดียว</small></div></div><div class="admin-control-grid">
-      <button type="button" class="admin-control-btn active" data-admin-nav="home"><span class="ico">🏠</span><b>Dashboard</b><small>หน้าเมนูหลัก</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="shops"><span class="ico">🏪</span><b>ร้านค้า</b><small>อนุมัติและจัดการร้าน</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="mission"><span class="ico">🎯</span><b>Mission</b><small>เปิดปิดและตั้งรางวัล</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="coupons"><span class="ico">🎟️</span><b>คูปอง</b><small>ทางลัดจัดการคูปอง</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="delivery"><span class="ico">🛵</span><b>Delivery</b><small>ควบคุมระบบจัดส่ง</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="riders"><span class="ico">👤</span><b>Rider โครงการ</b><small>รายชื่อและงานล่าสุด</small></button>
-      <button type="button" class="admin-control-btn" data-admin-nav="analytics"><span class="ico">📊</span><b>สถิติ</b><small>ผู้เข้าชมและร้านยอดนิยม</small></button>
-    </div>`;
-    panel.prepend(nav);
-
-    const delivery=$('deliverySystemForm')?.closest('section');
-    const riders=$('adminRiderForm')?.closest('section');
-    const mission=$('missionRewardForm')?.closest('section');
-    const analytics=panel.querySelector('.analytics-panel');
-    if(delivery){delivery.dataset.adminView='delivery';delivery.insertAdjacentHTML('afterbegin',adminViewHeader('🛵 Delivery','สวิตช์ควบคุม Delivery ทั้งระบบ'));}
-    if(riders){riders.dataset.adminView='riders';riders.insertAdjacentHTML('afterbegin',adminViewHeader('👤 Rider โครงการ','ทะเบียน Rider เบอร์ติดต่อ และงานล่าสุด'));}
-    if(mission){mission.dataset.adminView='mission';mission.insertAdjacentHTML('afterbegin',adminViewHeader('🎯 Mission','ตั้งค่ากิจกรรมและรางวัล Mission'));}
-    if(analytics){analytics.dataset.adminView='analytics';analytics.insertAdjacentHTML('afterbegin',adminViewHeader('📊 สถิติ','เลือกดูวันนี้ 7 วัน 30 วัน หรือทั้งหมด'));}
-
-    const pending=$('pendingGrid'),all=$('adminAllGrid');
-    if(pending&&all){
-      const children=Array.from(panel.children);const start=children.indexOf(pending.previousElementSibling);const end=children.indexOf(all);
-      if(start>=0&&end>=start){const wrap=document.createElement('section');wrap.dataset.adminView='shops';wrap.className='admin-shops-view';wrap.innerHTML=adminViewHeader('🏪 ร้านค้า','อนุมัติ แก้ไข และกำหนดสิทธิ์ Delivery รายร้าน')+`<div class="admin-shop-search"><label for="adminShopSearchInput">ค้นหาร้านค้า</label><div class="admin-shop-search-row"><input id="adminShopSearchInput" type="search" autocomplete="off" placeholder="ชื่อร้าน หมวดหมู่ เบอร์โทร ที่อยู่ หรือสถานะ"><button id="adminShopSearchClear" type="button" class="secondary hidden">ล้างคำค้น</button></div><small id="adminShopSearchStatus" class="muted" aria-live="polite"></small></div>`;panel.insertBefore(wrap,children[start]);for(let i=start;i<=end;i++)wrap.appendChild(children[i]);$('adminShopSearchInput')?.addEventListener('input',renderAdminShopLists);$('adminShopSearchClear')?.addEventListener('click',()=>{const input=$('adminShopSearchInput');if(input){input.value='';input.focus();}renderAdminShopLists();});}
-    }
-
-    const coupon=document.createElement('section');coupon.dataset.adminView='coupons';coupon.className='admin-coupon-view';coupon.innerHTML=adminViewHeader('🎟️ คูปอง','ระบบคูปองใช้จุดจัดการเดิมเพื่อไม่เปลี่ยน logic ที่ใช้งานอยู่')+`<div class="admin-home-note"><b>จัดการคูปองจากจุดเดิมได้เหมือนเดิม</b><p class="muted">คูปอง Mission ตั้งจากหน้า Mission ส่วนคูปองร้านค้าสร้างจาก “จัดการโปรโมชั่น” ของร้านนั้น</p><div class="admin-coupon-links"><button type="button" class="secondary" data-admin-nav="mission">🎯 ไปตั้งคูปอง Mission</button><button type="button" class="secondary" data-admin-nav="shops">🏪 ไปเลือกร้านและจัดการโปรโมชั่น</button></div></div>`;panel.appendChild(coupon);
-
-    const home=document.createElement('section');home.dataset.adminView='home';home.className='admin-home-view';home.innerHTML=`<div class="admin-home-note"><b>เลือกเมนูด้านบนเพื่อจัดการระบบ</b><p class="muted" style="margin-bottom:0">แต่ละฟังก์ชันถูกแยกเป็นหน้าควบคุมภายใน Admin เดียวกัน ข้อมูลและฟังก์ชันเดิมยังใช้ชุดเดิมทั้งหมด</p></div>`;nav.insertAdjacentElement('afterend',home);
-
-    panel.addEventListener('click',ev=>{const b=ev.target.closest('[data-admin-nav]');if(b){ev.preventDefault();showAdminView(b.dataset.adminNav||'home');}});
-    showAdminView('home');
   }
 
   async function loadDashboard(){
@@ -2598,29 +1145,13 @@
     $('myShopGrid').innerHTML=(mine||[]).length?(mine||[]).map(s=>shopCard(s,true)).join(''):'<p>ยังไม่มีร้านในบัญชีนี้</p>';
     $('adminPanel').classList.toggle('hidden',profile?.role!=='admin');
     if(profile?.role==='admin'){
-      ensureAdminControlCenter();
-      loadAnalyticsDashboard(analyticsPeriod);
-      loadRiderAdminPanel();
-      const [{data:pending,error:pendingError},{data:allShops,error:allShopsError},{data:deliveryAccess,error:deliveryAccessError}]=await Promise.all([
-        db.from('market_shops').select('*, category:market_categories(id,name,icon)').eq('status','pending').order('created_at'),
-        db.from('market_shops').select('*, category:market_categories(id,name,icon)').order('created_at',{ascending:false}),
-        db.rpc('market_admin_list_order_shop_access')
-      ]);
-      if(pendingError)showNotice(pendingError.message,true);
-      if(allShopsError)showNotice(allShopsError.message,true);
-      if(deliveryAccessError)console.warn('Delivery access:',deliveryAccessError.message);
-      const accessMap=new Map((deliveryAccess||[]).map(x=>[String(x.shop_id),Boolean(x.enabled)]));
-      const withAccess=(allShops||[]).map(s=>({...s,delivery_access_known:true,delivery_access_enabled:accessMap.get(String(s.id))===true}));
-      adminPendingShops=(pending||[]).map(s=>({...s,delivery_access_known:true,delivery_access_enabled:false}));
-      adminAllShops=withAccess;
-      renderAdminShopLists();
-      loadMissionRewardAdmin().catch(()=>{});
-      loadDeliverySystemAdmin().catch(()=>{});
+      const {data:pending}=await db.from('market_shops').select('*, category:market_categories(id,name,icon)').eq('status','pending').order('created_at');
+      $('pendingGrid').innerHTML=(pending||[]).length?(pending||[]).map(s=>shopCard(s,true)).join(''):'<p>ไม่มีร้านรออนุมัติ</p>';
     }
   }
 
   async function uploadCover(file, shopId){
-    return uploadCompressedImage(file,'shop-images',`${session.user.id}/${shopId}`,{maxWidth:1200,maxHeight:1200,maxBytes:450*1024});
+    return uploadCompressedImage(file,'shop-images',`${session.user.id}/${shopId}`,{maxWidth:1600,maxHeight:1600,maxBytes:900*1024});
   }
 
   function useCurrentLocationForShop(){
@@ -2636,10 +1167,9 @@
       if(status)status.textContent=`บันทึกตำแหน่งแล้ว${accuracy?` • ความแม่นยำประมาณ ±${accuracy} เมตร`:''} กรุณาตรวจสอบก่อนกดบันทึกร้าน`;
       if(btn){btn.disabled=false;btn.textContent='✓ ใช้ตำแหน่งนี้แล้ว';}
     },err=>{
-      const msg=err.code===1?'ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง':err.code===2?'ไม่พบตำแหน่ง กรุณาเปิด GPS / Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
+      const msg=err.code===1?'กรุณาอนุญาตให้เว็บไซต์ใช้ตำแหน่งของคุณ':err.code===2?'ไม่พบตำแหน่ง กรุณาเปิด GPS / Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
       if(status)status.textContent=msg;
       if(btn){btn.disabled=false;btn.textContent='📍 ใช้ตำแหน่งปัจจุบันของฉัน';}
-      window.KBLocationHelp?.show({error:err,retry:useCurrentLocationForShop,context:'การปักหมุดร้าน'});
     },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
   }
 
@@ -2651,28 +1181,15 @@
     const existingId=String(fd.get('id')||'').trim();
     const id=existingId||crypto.randomUUID();
     const file=fd.get('cover');
-    let existingShop=null;
-    if(existingId){
-      const {data:existingData,error:existingError}=await db.from('market_shops').select('*').eq('id',existingId).maybeSingle();
-      if(existingError)return alert('โหลดข้อมูลร้านเดิมไม่สำเร็จ: '+existingError.message);
-      existingShop=existingData;
-      if(!existingShop)return alert('ไม่พบร้านที่ต้องการแก้ไข');
-      if(profile?.role!=='admin'&&existingShop.owner_id!==session.user.id)return alert('คุณไม่มีสิทธิ์แก้ไขร้านนี้');
-    }
+    const existingShop=existingId?shops.find(s=>s.id===existingId):null;
     const oldCoverUrl=existingShop?.cover_url||'';
-    const ownerId=existingShop?.owner_id||session.user.id;
-    const payload={name:String(fd.get('name')||'').trim(),category_id:fd.get('category_id'),description:fd.get('description')||null,address:fd.get('address')||null,zone:fd.get('zone')||null,lock_number:fd.get('lock_number')||null,floor:fd.get('floor')||null,landmark:fd.get('landmark')||null,phone:fd.get('phone')||null,email:fd.get('email')||null,line:fd.get('line')||null,facebook:fd.get('facebook')||null,tiktok:fd.get('tiktok')||null,instagram:fd.get('instagram')||null,website:fd.get('website')||null,latitude:fd.get('latitude')?Number(fd.get('latitude')):null,longitude:fd.get('longitude')?Number(fd.get('longitude')):null,opening_hours:readOpeningHours(form),temporarily_closed:form.elements.temporarily_closed.checked,open_24_hours:form.elements.open_24_hours.checked,delivery:form.elements.delivery.checked,lineman:form.elements.lineman.checked,grab:form.elements.grab.checked,shopeefood:form.elements.shopeefood.checked,lineman_url:fd.get('lineman_url')||null,grab_url:fd.get('grab_url')||null,shopeefood_url:fd.get('shopeefood_url')||null,qr_payment:form.elements.qr_payment.checked,card_payment:form.elements.card_payment.checked,parking:form.elements.parking.checked,pet_friendly:form.elements.pet_friendly.checked,wheelchair_accessible:form.elements.wheelchair_accessible.checked,owner_id:ownerId};
+    const payload={name:String(fd.get('name')||'').trim(),category_id:fd.get('category_id'),description:fd.get('description')||null,address:fd.get('address')||null,zone:fd.get('zone')||null,lock_number:fd.get('lock_number')||null,floor:fd.get('floor')||null,landmark:fd.get('landmark')||null,phone:fd.get('phone')||null,email:fd.get('email')||null,line:fd.get('line')||null,facebook:fd.get('facebook')||null,tiktok:fd.get('tiktok')||null,instagram:fd.get('instagram')||null,website:fd.get('website')||null,latitude:fd.get('latitude')?Number(fd.get('latitude')):null,longitude:fd.get('longitude')?Number(fd.get('longitude')):null,opening_hours:readOpeningHours(form),temporarily_closed:form.elements.temporarily_closed.checked,open_24_hours:form.elements.open_24_hours.checked,delivery:form.elements.delivery.checked,lineman:form.elements.lineman.checked,grab:form.elements.grab.checked,shopeefood:form.elements.shopeefood.checked,lineman_url:fd.get('lineman_url')||null,grab_url:fd.get('grab_url')||null,shopeefood_url:fd.get('shopeefood_url')||null,qr_payment:form.elements.qr_payment.checked,card_payment:form.elements.card_payment.checked,parking:form.elements.parking.checked,pet_friendly:form.elements.pet_friendly.checked,wheelchair_accessible:form.elements.wheelchair_accessible.checked,owner_id:session.user.id};
     const btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='กำลังบันทึก...';
     try{
       if(file&&file.size)payload.cover_url=await uploadCover(file,id);
-      let result;
-      if(existingId){
-        let updateQuery=db.from('market_shops').update(payload).eq('id',existingId);
-        if(profile?.role!=='admin')updateQuery=updateQuery.eq('owner_id',session.user.id);
-        result=await updateQuery;
-      }else{
-        result=await db.from('market_shops').insert({...payload,id,status:'pending'});
-      }
+      const result=existingId
+        ? await db.from('market_shops').update(payload).eq('id',existingId).eq('owner_id',session.user.id)
+        : await db.from('market_shops').insert({...payload,id,status:'pending'});
       if(result.error){if(payload.cover_url)await removeStoredImage(payload.cover_url,'shop-images');throw result.error;}
       if(payload.cover_url&&oldCoverUrl&&payload.cover_url!==oldCoverUrl)await removeStoredImage(oldCoverUrl,'shop-images');
       form.reset();closeModal('shopModal');
@@ -2685,8 +1202,7 @@
 
   async function editShop(id){
     const {data,error}=await db.from('market_shops').select('*').eq('id',id).single();if(error)return alert(error.message);
-    if(profile?.role!=='admin'&&data.owner_id!==session?.user?.id)return alert('คุณไม่มีสิทธิ์แก้ไขร้านนี้');
-    const f=$('shopForm');Object.entries(data).forEach(([k,v])=>{if(!f.elements[k]||k==='cover'||k==='opening_hours')return;if(f.elements[k].type==='checkbox')f.elements[k].checked=Boolean(v);else f.elements[k].value=v??'';});fillOpeningHours(f,data.opening_hours||{});$('shopFormTitle').textContent=profile?.role==='admin'&&data.owner_id!==session?.user?.id?'แก้ไขข้อมูลร้าน (Admin)':'แก้ไขข้อมูลร้าน';openModal('shopModal');
+    const f=$('shopForm');Object.entries(data).forEach(([k,v])=>{if(!f.elements[k]||k==='cover'||k==='opening_hours')return;if(f.elements[k].type==='checkbox')f.elements[k].checked=Boolean(v);else f.elements[k].value=v??'';});fillOpeningHours(f,data.opening_hours||{});$('shopFormTitle').textContent='แก้ไขข้อมูลร้าน';openModal('shopModal');
   }
   async function setFeatured(id,featured){
     const {error}=await db.from('market_shops').update({featured}).eq('id',id);
@@ -2711,96 +1227,6 @@
     await loadShopIndex();
       await Promise.all([loadDashboard(),loadPublicShops({reset:true})]);
   }
-
-
-  // v0.5.22.8 COUPON WALLET / PUBLIC CLAIM MODULE
-  function walletStatusLabel(v){return v==='used'?'ใช้แล้ว':v==='locked'?'กำลังใช้กับออเดอร์':v==='expired'?'หมดอายุ':'พร้อมใช้';}
-  async function loadPublicShopCoupons(shopId){
-    const box=$('shopPublicCouponBox');if(!box||!db)return;
-    box.innerHTML='';
-    const {data,error}=await db.rpc('market_public_shop_coupons',{p_shop_id:shopId});if(error){console.warn('coupon list',error);return;}
-    const list=Array.isArray(data)?data:[];if(!list.length)return;
-    box.innerHTML=`<div style="margin:14px 0 4px"><b>🎟️ คูปองร้านค้า</b><div style="display:grid;gap:8px;margin-top:8px">${list.map(c=>`<div style="border:1px dashed #bbb;border-radius:12px;padding:10px;display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>${esc(c.title)}</b><div>${esc(c.discount_label||'')} ${Number(c.min_spend||0)>0?`· ขั้นต่ำ ${Number(c.min_spend)} บาท`:''}</div><small class="muted">${esc(couponChannelLabel(c.channel))}${c.ends_at?' · ถึง '+new Date(c.ends_at).toLocaleDateString('th-TH'):''}</small></div><button type="button" class="${c.claimed?'ghost':'primary'}" data-claim-coupon="${esc(c.id)}" ${c.claimed?'disabled':''}>${c.claimed?'✓ เก็บแล้ว':'🎟️ เก็บคูปอง'}</button></div>`).join('')}</div></div>`;
-  }
-  async function claimShopCoupon(id){
-    if(!session){openModal('authModal');return alert('กรุณาเข้าสู่ระบบก่อนเก็บคูปอง');}
-    const {error}=await db.rpc('market_claim_coupon',{p_coupon_id:id});if(error)return alert(error.message||'เก็บคูปองไม่สำเร็จ');
-    const box=$('shopPublicCouponBox'),shopId=box?.dataset?.shopCoupons;if(shopId)await loadPublicShopCoupons(shopId);showNotice('เก็บคูปองไว้ในคูปองของฉันแล้ว');
-  }
-  function ensureCouponWalletUI(){
-    if(!$('couponWalletBtn')){const b=document.createElement('button');b.id='couponWalletBtn';b.className='ghost hidden header-shortcut';b.type='button';b.innerHTML='<span class="nav-ico">🎟️</span><span class="nav-label">คูปองของฉัน</span>';const account=$('accountBtn');account?.parentNode?.insertBefore(b,account);b.addEventListener('click',openCouponWallet);}
-    if(!$('couponWalletModal')){const m=document.createElement('div');m.id='couponWalletModal';m.className='modal hidden';m.innerHTML=`<div class="backdrop" data-close="couponWalletModal"></div><div class="modal-card"><button class="close" data-close="couponWalletModal">×</button><div class="section-head"><div><span class="eyebrow red">บัญชีของฉัน</span><h2>🎟️ คูปองของฉัน</h2></div></div><div id="couponWalletTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button type="button" class="ghost" data-wallet-filter="available">พร้อมใช้</button><button type="button" class="ghost" data-wallet-filter="locked">กำลังใช้</button><button type="button" class="ghost" data-wallet-filter="used">ใช้แล้ว</button><button type="button" class="ghost" data-wallet-filter="expired">หมดอายุ</button></div><div id="couponWalletList"></div></div>`;document.body.appendChild(m);}
-    $('couponWalletBtn')?.classList.toggle('hidden',!session);
-  }
-  let couponWalletCache=[],couponWalletFilter='available';
-  async function openCouponWallet(){if(!session){openModal('authModal');return;}ensureCouponWalletUI();openModal('couponWalletModal');const box=$('couponWalletList');box.innerHTML='<p>กำลังโหลดคูปอง...</p>';try{await db.rpc('market_sync_mission_coupon_claim');}catch(syncErr){console.warn('mission coupon sync skipped',syncErr);}const {data,error}=await db.rpc('market_my_coupon_wallet');if(error){console.error('coupon wallet',error);box.innerHTML=`<p>โหลดคูปองไม่สำเร็จ</p><small class="muted">${esc(error.message||'กรุณาตรวจ SQL คูปอง')}</small>`;return;}couponWalletCache=Array.isArray(data)?data:[];renderCouponWallet();}
-  function renderCouponWallet(){const box=$('couponWalletList');if(!box)return;const list=couponWalletCache.filter(c=>c.wallet_status===couponWalletFilter);box.innerHTML=list.length?`<div style="display:grid;gap:10px">${list.map(c=>`<article style="border:1px solid #ddd;border-radius:14px;padding:12px"><div style="display:flex;justify-content:space-between;gap:10px"><div><b>${esc(c.title)}</b><div>${esc(c.discount_label||'')}</div><small class="muted">${esc(c.shop_name||'ร้านค้าในตลาด')} · ${esc(couponChannelLabel(c.channel))}</small></div><strong>${walletStatusLabel(c.wallet_status)}</strong></div>${Number(c.min_spend||0)>0?`<small>ยอดขั้นต่ำ ${Number(c.min_spend)} บาท</small>`:''}${c.ends_at?`<small style="display:block">หมดอายุ ${new Date(c.ends_at).toLocaleString('th-TH')}</small>`:''}</article>`).join('')}</div>`:'<div class="empty-inline">ยังไม่มีคูปองในหมวดนี้</div>';}
-
-  // v0.5.22.8 SAFE COUPON MODULE
-  // UI is injected only inside existing admin/promotion modals. No home-page markup or global CSS is changed.
-  let shopCouponCache=[];
-  function toLocalDateTimeInput(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const off=d.getTimezoneOffset()*60000;return new Date(d.getTime()-off).toISOString().slice(0,16);}
-  function couponDiscountLabel(c){return c?.discount_type==='percent'?`ลด ${Number(c.discount_value||0)}%${Number(c.max_discount||0)>0?` สูงสุด ${Number(c.max_discount)} บาท`:''}`:`ลด ${Number(c?.discount_value||0)} บาท`;}
-  function couponChannelLabel(v){return v==='delivery'?'Delivery เท่านั้น':v==='pickup'?'รับเองเท่านั้น':'รับเอง + Delivery';}
-
-  function ensureMissionCouponAdminUI(){
-    const f=$('missionRewardForm');if(!f||$('missionCouponAdminBlock'))return;
-    const save=f.querySelector('button[type="submit"]');if(!save)return;
-    const wrap=document.createElement('div');wrap.id='missionCouponAdminBlock';wrap.style.cssText='border-top:1px solid #e5e5e5;margin-top:14px;padding-top:14px';
-    wrap.innerHTML=`<div style="font-weight:800;margin-bottom:8px">🎟️ คูปองเมื่อ Mission สำเร็จ (ไม่บังคับ)</div>
-      <label>วัน/เวลาสิ้นสุดการรับรางวัล<input name="reward_claim_until" type="datetime-local"><small class="muted">เมื่อพ้นเวลานี้ Mission จะหายจากหน้าเว็บและจะไม่เด้ง Popup อีก</small></label>
-      <label class="check"><input name="mission_coupon_active" type="checkbox"> เปิดให้รางวัล Mission เป็นคูปองด้วย</label>
-      <label>ร้านที่ใช้คูปอง<select name="mission_coupon_shop_id"><option value="">เลือกร้าน</option></select></label>
-      <div class="form-grid"><label>ประเภทส่วนลด<select name="mission_coupon_discount_type"><option value="fixed">ลดเป็นบาท</option><option value="percent">ลดเป็นเปอร์เซ็นต์</option></select></label><label>ส่วนลด<input name="mission_coupon_discount_value" type="number" min="0" step="0.01"></label></div>
-      <div class="form-grid"><label>ยอดซื้อขั้นต่ำ<input name="mission_coupon_min_spend" type="number" min="0" step="0.01" value="0"></label><label>ลดสูงสุด (ถ้ามี)<input name="mission_coupon_max_discount" type="number" min="0" step="0.01"></label></div>
-      <div class="form-grid"><label>ช่องทาง<select name="mission_coupon_channel"><option value="both">รับเอง + Delivery</option><option value="delivery">Delivery เท่านั้น</option><option value="pickup">รับเองเท่านั้น</option></select></label><label>หมดอายุ<input name="mission_coupon_ends_at" type="datetime-local"></label></div>
-      <small class="muted">คูปอง Mission ใช้ได้ 1 ครั้งต่อบัญชี และหักเฉพาะค่าสินค้า ไม่ลดค่าจัดส่ง</small>`;
-    save.insertAdjacentElement('beforebegin',wrap);
-  }
-  async function fillMissionCouponShopOptions(selected=''){
-    const sel=$('missionRewardForm')?.elements?.mission_coupon_shop_id;if(!sel||!db)return;
-    const {data}=await db.from('market_shops').select('id,name').eq('status','approved').order('name');
-    sel.innerHTML='<option value="">เลือกร้าน</option>'+((data||[]).map(s=>`<option value="${esc(s.id)}" ${String(s.id)===String(selected)?'selected':''}>${esc(s.name)}</option>`).join(''));
-  }
-
-  function ensureShopCouponManagerUI(){
-    if($('ownerCouponSection'))return;
-    const list=$('ownerPromotionList');if(!list)return;
-    const sec=document.createElement('section');sec.id='ownerCouponSection';sec.style.cssText='border-top:1px solid #e5e5e5;margin-top:18px;padding-top:16px';
-    sec.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3 style="margin:0">🎟️ คูปองของร้าน</h3><small class="muted">ใช้ได้กับรับเอง / Delivery ตามที่ร้านกำหนด · 1 ครั้งต่อบัญชี</small></div><button type="button" class="primary" data-coupon-action="new">+ สร้างคูปอง</button></div><div id="ownerCouponList" style="margin-top:12px"></div>`;
-    list.insertAdjacentElement('afterend',sec);
-    ensureShopCouponEditorModal();
-  }
-  function ensureShopCouponEditorModal(){
-    if($('shopCouponEditorModal'))return;
-    const modal=document.createElement('div');modal.id='shopCouponEditorModal';modal.className='modal hidden';
-    modal.innerHTML=`<div class="backdrop" data-coupon-action="close"></div><div class="modal-card small"><button class="close" type="button" data-coupon-action="close">×</button><h2 id="shopCouponEditorTitle">สร้างคูปอง</h2><form id="shopCouponForm"><input name="coupon_id" type="hidden"><input name="shop_id" type="hidden"><label>ชื่อคูปอง<input name="title" maxlength="120" required placeholder="เช่น ลด 15 บาท"></label><label>รายละเอียด<textarea name="description" rows="2" maxlength="500"></textarea></label><div class="form-grid"><label>ประเภทส่วนลด<select name="discount_type"><option value="fixed">ลดเป็นบาท</option><option value="percent">ลดเป็นเปอร์เซ็นต์</option></select></label><label>ส่วนลด<input name="discount_value" type="number" min="0.01" step="0.01" required></label></div><div class="form-grid"><label>ยอดขั้นต่ำ<input name="min_spend" type="number" min="0" step="0.01" value="0"></label><label>ลดสูงสุด (ถ้ามี)<input name="max_discount" type="number" min="0" step="0.01"></label></div><div class="form-grid"><label>ช่องทาง<select name="channel"><option value="both">รับเอง + Delivery</option><option value="delivery">Delivery เท่านั้น</option><option value="pickup">รับเองเท่านั้น</option></select></label><label>จำนวนสิทธิ์รวม<input name="total_limit" type="number" min="1" step="1" placeholder="เว้นว่าง = ไม่จำกัด"></label></div><div class="form-grid"><label>เริ่มใช้<input name="starts_at" type="datetime-local"></label><label>หมดอายุ<input name="ends_at" type="datetime-local"></label></div><label class="check"><input name="active" type="checkbox" checked> เปิดใช้งานคูปอง</label><small class="muted">ลูกค้าแต่ละบัญชีใช้คูปองนี้ได้ 1 ครั้ง ส่วนลดจะหักเฉพาะค่าสินค้าของร้าน</small><button type="submit" class="primary" style="margin-top:12px">💾 บันทึกคูปอง</button></form></div>`;
-    document.body.appendChild(modal);
-    $('shopCouponForm')?.addEventListener('submit',saveShopCoupon);
-  }
-  async function loadShopCoupons(shopId){
-    const box=$('ownerCouponList');if(!box||!shopId||!db)return;
-    box.innerHTML='<p>กำลังโหลดคูปอง...</p>';
-    const {data,error}=await db.rpc('market_shop_coupon_list',{p_shop_id:shopId});
-    if(error){box.innerHTML=`<p class="form-message">${esc(error.message)}</p>`;return;}
-    shopCouponCache=Array.isArray(data)?data:[];
-    box.innerHTML=shopCouponCache.length?shopCouponCache.map(c=>`<article class="owner-promo-item"><div><div class="owner-promo-title"><b>${esc(c.title)}</b><span class="owner-promo-state ${c.active?'active':'inactive'}">${c.active?'เปิด':'ปิด'}</span></div><p>${esc(couponDiscountLabel(c))} · ขั้นต่ำ ${Number(c.min_spend||0)} บาท · ${esc(couponChannelLabel(c.channel))}</p><small>${c.ends_at?'หมดอายุ '+new Date(c.ends_at).toLocaleString('th-TH'):'ไม่กำหนดวันหมดอายุ'}${c.total_limit?` · ${Number(c.redeemed_count||0)}/${Number(c.total_limit)} สิทธิ์`:` · ใช้แล้ว ${Number(c.redeemed_count||0)} ครั้ง`}</small></div><div class="owner-promo-actions"><button type="button" class="ghost" data-coupon-action="edit" data-coupon-id="${esc(c.id)}">แก้ไข</button><button type="button" class="danger" data-coupon-action="delete" data-coupon-id="${esc(c.id)}">ลบ</button></div></article>`).join(''):'<div class="empty-inline">ร้านนี้ยังไม่มีคูปอง</div>';
-  }
-  function openShopCouponEditor(couponId=''){
-    ensureShopCouponEditorModal();const f=$('shopCouponForm');if(!f)return;
-    const shopId=$('managePromotionShopId')?.value||'';const c=shopCouponCache.find(x=>String(x.id)===String(couponId));f.reset();f.elements.shop_id.value=shopId;f.elements.coupon_id.value=c?.id||'';f.elements.title.value=c?.title||'';f.elements.description.value=c?.description||'';f.elements.discount_type.value=c?.discount_type||'fixed';f.elements.discount_value.value=c?.discount_value??'';f.elements.min_spend.value=c?.min_spend??0;f.elements.max_discount.value=c?.max_discount??'';f.elements.channel.value=c?.channel||'both';f.elements.total_limit.value=c?.total_limit??'';f.elements.starts_at.value=toLocalDateTimeInput(c?.starts_at);f.elements.ends_at.value=toLocalDateTimeInput(c?.ends_at);f.elements.active.checked=c?Boolean(c.active):true;$('shopCouponEditorTitle').textContent=c?'แก้ไขคูปอง':'สร้างคูปอง';$('shopCouponEditorModal').classList.remove('hidden');
-  }
-  async function saveShopCoupon(ev){
-    ev.preventDefault();const f=ev.currentTarget,btn=f.querySelector('button[type="submit"]');const p={p_coupon_id:f.elements.coupon_id.value||null,p_shop_id:f.elements.shop_id.value,p_title:f.elements.title.value.trim(),p_description:f.elements.description.value.trim(),p_discount_type:f.elements.discount_type.value,p_discount_value:Number(f.elements.discount_value.value||0),p_min_spend:Number(f.elements.min_spend.value||0),p_max_discount:f.elements.max_discount.value?Number(f.elements.max_discount.value):null,p_channel:f.elements.channel.value,p_starts_at:f.elements.starts_at.value?new Date(f.elements.starts_at.value).toISOString():null,p_ends_at:f.elements.ends_at.value?new Date(f.elements.ends_at.value).toISOString():null,p_total_limit:f.elements.total_limit.value?Number(f.elements.total_limit.value):null,p_active:f.elements.active.checked};
-    if(!p.p_title)return alert('กรุณาระบุชื่อคูปอง');if(!Number.isFinite(p.p_discount_value)||p.p_discount_value<=0)return alert('ส่วนลดต้องมากกว่า 0');if(p.p_discount_type==='percent'&&p.p_discount_value>100)return alert('ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100%');
-    if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...'}const {error}=await db.rpc('market_shop_coupon_upsert',p);if(btn){btn.disabled=false;btn.textContent='💾 บันทึกคูปอง'}if(error)return alert('บันทึกคูปองไม่สำเร็จ: '+error.message);$('shopCouponEditorModal').classList.add('hidden');await loadShopCoupons(p.p_shop_id);
-  }
-  async function deleteShopCoupon(id){
-    const shopId=$('managePromotionShopId')?.value;if(!shopId||!id||!confirm('ยืนยันลบคูปองนี้?'))return;const {error}=await db.rpc('market_shop_coupon_delete',{p_coupon_id:id,p_shop_id:shopId});if(error)return alert('ลบคูปองไม่สำเร็จ: '+error.message);await loadShopCoupons(shopId);
-  }
-  document.addEventListener('click',ev=>{const claim=ev.target.closest('[data-claim-coupon]');if(claim){claimShopCoupon(claim.dataset.claimCoupon);return;}const wf=ev.target.closest('[data-wallet-filter]');if(wf){couponWalletFilter=wf.dataset.walletFilter;renderCouponWallet();return;}
-    const b=ev.target.closest('[data-coupon-action]');if(!b)return;const a=b.dataset.couponAction;if(a==='new')openShopCouponEditor();else if(a==='edit')openShopCouponEditor(b.dataset.couponId);else if(a==='delete')deleteShopCoupon(b.dataset.couponId);else if(a==='close')$('shopCouponEditorModal')?.classList.add('hidden');
-  });
 
   function isRecoveryLink(){
     const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
@@ -2837,108 +1263,57 @@
     else goHome();
   }
 
-
-  async function adminToggleDeliveryAccess(shopId,currentEnabled){
-    if(!session||profile?.role!=='admin')return alert('เฉพาะ Admin เท่านั้น');
-    const next=!currentEnabled;
-    const actionText=next?'เปิดสิทธิ์ขาย/Delivery':'ปิดสิทธิ์ขาย/Delivery';
-    if(!confirm(`${actionText} สำหรับร้านนี้ใช่หรือไม่?`))return;
-    const note=next?'เปิดสิทธิ์โดย Admin':'ปิดสิทธิ์โดย Admin';
-    const {error}=await db.rpc('market_admin_set_order_shop_access',{p_shop_id:shopId,p_enabled:next,p_note:note});
-    if(error)return alert('เปลี่ยนสิทธิ์ไม่สำเร็จ: '+friendlyAuthError(error.message));
-    showNotice(next?'เปิดสิทธิ์ขาย/Delivery ให้ร้านแล้ว':'ปิดสิทธิ์ขาย/Delivery ของร้านแล้ว');
-    await loadDashboard();
-  }
-
   function bindEvents(){
     document.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',()=>closeModal(x.dataset.close)));
-    document.addEventListener('click',ev=>{const closer=ev.target.closest?.('[data-close]');if(closer?.dataset?.close)closeModal(closer.dataset.close);});
     $('floatingHomeBtn')?.addEventListener('click',goHome);
     $('floatingBackBtn')?.addEventListener('click',goBack);
-    document.querySelectorAll('[data-analytics-period]').forEach(btn=>btn.addEventListener('click',()=>loadAnalyticsDashboard(btn.dataset.analyticsPeriod||'7d')));
-    $('accountBtn').addEventListener('click',()=>{
-      if(!session)return openModal('authModal');
-      $('dashboard').scrollIntoView({behavior:'smooth'});
-    });
-    $('headerUserName')?.addEventListener('click',()=>{if(session)openProfileNameEditor();});
-    $('headerUserName')?.addEventListener('keydown',ev=>{if(session&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();openProfileNameEditor();}});
-    $('guestSignUpBtn')?.addEventListener('click',()=>{setAuthMethod('email');openModal('authModal');setTimeout(()=>document.querySelector('#authModal input[name="email"]')?.focus(),60);});
+    $('accountBtn').addEventListener('click',()=>session?$('dashboard').scrollIntoView({behavior:'smooth'}):openModal('authModal'));
     $('addShopBtn').addEventListener('click',()=>{if(!session)return openModal('authModal');$('shopForm').reset();fillOpeningHours($('shopForm'),{});$('shopFormTitle').textContent='เพิ่มร้านของฉัน';openModal('shopModal');});
-    $('searchBtn').addEventListener('click',()=>resetShopList({scroll:true}));
-    $('searchInput').addEventListener('keydown',ev=>{
-      if(ev.key==='Enter'){
-        ev.preventDefault();
-        resetShopList({scroll:true});
-      }
-    });
-    document.querySelectorAll('[data-auth-method]').forEach(b=>b.addEventListener('click',()=>setAuthMethod(b.dataset.authMethod)));
-    setAuthMethod('email');
+    let searchTimer=null;
+    $('searchBtn').addEventListener('click',()=>resetShopList());
+    $('searchInput').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>resetShopList(),250);});
     $('authForm').addEventListener('submit',async ev=>{
       ev.preventDefault();
       if(!db)return alert('ยังไม่ได้ตั้งค่า Supabase');
       const form=ev.currentTarget;
       if(!form.reportValidity())return;
-      const fd=new FormData(form), method=String(fd.get('auth_method')||'email');
+      const fd=new FormData(form);
       const email=String(fd.get('email')||'').trim();
-      const phone=normalizeLoginPhone(fd.get('phone'));
       const password=String(fd.get('password')||'');
-      if(password.length<6)return alert('กรุณากรอกรหัสผ่านอย่างน้อย 6 ตัว');
-      if(method==='email'&&!email)return alert('กรุณากรอกอีเมล');
-      if(method==='phone'&&!phone)return alert('กรุณากรอกเบอร์โทร 10 หลัก เช่น 0812345678');
+      if(!email||password.length<6)return alert('กรุณากรอกอีเมลและรหัสผ่านอย่างน้อย 6 ตัว');
       const btn=form.querySelector('button[type=submit]');
       btn.disabled=true;btn.textContent='กำลังเข้าสู่ระบบ...';
       try{
-        const loginEmail=method==='phone'?phoneLoginEmail(phone):email;
-        const {error}=await db.auth.signInWithPassword({email:loginEmail,password});
+        const {error}=await db.auth.signInWithPassword({email,password});
         if(error)throw error;
         closeModal('authModal');
         await refreshAuth();
       }catch(err){alert('เข้าสู่ระบบไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='เข้าสู่ระบบ';}
     });
-    $('openTermsBtn')?.addEventListener('click',()=>{
-      const terms=$('termsModal');
-      if(terms)terms.dataset.returnToAuth='1';
-      closeModal('authModal');
-      openModal('termsModal');
-    });
-    $('termsModal')?.addEventListener('click',ev=>{
-      const closer=ev.target.closest?.('[data-close="termsModal"]');
-      if(!closer)return;
-      const terms=$('termsModal');
-      const shouldReturn=terms?.dataset?.returnToAuth==='1';
-      if(terms)delete terms.dataset.returnToAuth;
-      if(shouldReturn)setTimeout(()=>openModal('authModal'),0);
-    });
     $('signUpBtn').addEventListener('click',async()=>{
       if(!db)return alert('ยังไม่ได้ตั้งค่า Supabase');
       const form=$('authForm');
       if(!form.reportValidity())return;
-      const fd=new FormData(form), method=String(fd.get('auth_method')||'email');
+      const fd=new FormData(form);
       const email=String(fd.get('email')||'').trim();
-      const phone=normalizeLoginPhone(fd.get('phone'));
       const password=String(fd.get('password')||'');
-      const displayName=cleanDisplayName(fd.get('display_name'));
-      if(!$('signupTermsAccepted')?.checked)return alert('กรุณาอ่านและยอมรับข้อตกลงและเงื่อนไขก่อนสมัครสมาชิก');
-      if(displayName.length<2)return alert('กรุณาตั้งชื่อที่ใช้แสดงอย่างน้อย 2 ตัวอักษร');
-      if(password.length<6)return alert('กรุณากรอกรหัสผ่านอย่างน้อย 6 ตัว');
-      if(method==='email'&&!email)return alert('กรุณากรอกอีเมล');
-      if(method==='phone'&&!phone)return alert('กรุณากรอกเบอร์โทร 10 หลัก เช่น 0812345678');
-      const btn=$('signUpBtn');btn.disabled=true;btn.textContent='กำลังสมัคร...';
+      if(!email||password.length<6)return alert('กรุณากรอกอีเมลและรหัสผ่านอย่างน้อย 6 ตัว');
+      const btn=$('signUpBtn');
+      btn.disabled=true;btn.textContent='กำลังสมัคร...';
       try{
-        const signupEmail=method==='phone'?phoneLoginEmail(phone):email;
-        const options=method==='phone'
-          ? {data:{signup_method:'phone_alias',phone_local:'0'+phone.slice(3),phone_e164:phone,display_name:displayName}}
-          : {emailRedirectTo:window.location.origin,data:{display_name:displayName,terms_version:'1.0',terms_accepted_at:new Date().toISOString()}};
-        const {data,error}=await db.auth.signUp({email:signupEmail,password,options});
+        const {data,error}=await db.auth.signUp({
+          email,
+          password,
+          options:{emailRedirectTo:window.location.origin}
+        });
         if(error)throw error;
         if(data.session){
-          session=data.session;
-          try{await db.rpc('market_set_my_display_name',{p_display_name:displayName});}catch(err){console.warn('initial display name save skipped',err);}
-          alert(method==='phone'?'สมัครด้วยเบอร์โทรสำเร็จ และเข้าสู่ระบบแล้ว':'สมัครสมาชิกสำเร็จ และเข้าสู่ระบบแล้ว');
-          closeModal('authModal'); await refreshAuth();
+          alert('สมัครสมาชิกสำเร็จ และเข้าสู่ระบบแล้ว');
+          closeModal('authModal');
+          await refreshAuth();
         }else{
-          alert(method==='phone'?'สมัครไม่สำเร็จทันที: โปรดตรวจว่า Confirm email ปิดอยู่':'สมัครสมาชิกสำเร็จ กรุณาเปิดอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ');
+          alert('สมัครสมาชิกสำเร็จ กรุณาเปิดอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ');
         }
       }catch(err){alert('สมัครสมาชิกไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='สมัครสมาชิก';}
@@ -2946,9 +1321,6 @@
     $('forgotPasswordBtn').addEventListener('click',async()=>{
       if(!db)return alert('ยังไม่ได้ตั้งค่า Supabase');
       const form=$('authForm');
-      if(String(form.elements.auth_method.value)==='phone'){
-        return alert('บัญชีที่สมัครด้วยเบอร์โทร: กรุณาติดต่อผู้ดูแลเพื่อขอรีเซ็ตรหัสผ่าน');
-      }
       const email=String(new FormData(form).get('email')||'').trim();
       if(!email)return alert('กรุณากรอกอีเมลก่อนกดลืมรหัสผ่าน');
       const btn=$('forgotPasswordBtn');
@@ -2975,14 +1347,12 @@
         alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
         form.reset();closeModal('resetPasswordModal');
         history.replaceState(null,'',window.location.pathname);
-        await deactivateNativePushToken();
         await db.auth.signOut();session=null;profile=null;updateAccountUI();openModal('authModal');
       }catch(err){alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='บันทึกรหัสผ่านใหม่';}
     });
     $('signOutBtn').addEventListener('click',async()=>{
       if(!db)return;
-      await deactivateNativePushToken();
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
       session=null;profile=null;updateAccountUI();
@@ -2995,47 +1365,6 @@
     }
     $('shopForm').addEventListener('submit',submitShop);
     $('promotionForm').addEventListener('submit',submitPromotion);
-    $('riderJoinBtn')?.addEventListener('click',openRiderApplication);
-    $('riderAcknowledgeBtn')?.addEventListener('click',acknowledgeRiderDetails);
-    $('riderApplyForm')?.addEventListener('submit',submitRiderApplication);
-    $('riderEditProfileBtn')?.addEventListener('click',editApprovedRiderProfile);
-    $('riderAvailabilityBtn')?.addEventListener('click',toggleMainRiderAvailability);
-    $('mainRiderCurrentTab')?.addEventListener('click',()=>showMainRiderPage('current'));
-    $('mainRiderHistoryTab')?.addEventListener('click',()=>showMainRiderPage('history'));
-    $('refreshMainRiderHistoryBtn')?.addEventListener('click',loadMainRiderHistory);
-    document.querySelectorAll('[data-main-rider-history-filter]').forEach(btn=>btn.addEventListener('click',()=>{
-      mainRiderHistoryFilter=btn.dataset.mainRiderHistoryFilter||'completed';
-      renderMainRiderHistory();
-    }));
-    $('riderCloseApprovedBtn')?.addEventListener('click',()=>closeModal('riderApplyModal'));
-    $('adminRiderApplicantList')?.addEventListener('click',ev=>{
-      const approve=ev.target.closest('[data-rider-approve]');
-      const reject=ev.target.closest('[data-rider-reject]');
-      const revoke=ev.target.closest('[data-rider-revoke]');
-      if(approve)decideRiderApplication(approve.dataset.riderApprove,true);
-      if(reject)decideRiderApplication(reject.dataset.riderReject,false);
-      if(revoke)revokeRiderApproval(revoke.dataset.riderRevoke);
-    });
-    $('mobileProfileDisplayNameForm')?.addEventListener('submit',async ev=>{
-      ev.preventDefault();
-      const form=ev.currentTarget;
-      const btn=form.querySelector('button[type=submit]');
-      btn.disabled=true;btn.textContent='กำลังบันทึก...';
-      try{
-        await saveMyDisplayName(form.elements.display_name.value);
-        closeModal('profileNameModal');
-      }catch(err){alert('บันทึกชื่อไม่สำเร็จ: '+(err.message||err));}
-      finally{btn.disabled=false;btn.textContent='💾 บันทึกชื่อ';}
-    });
-    $('profileDisplayNameForm')?.addEventListener('submit',async ev=>{
-      ev.preventDefault();
-      const form=ev.currentTarget;
-      const btn=form.querySelector('button[type=submit]');
-      btn.disabled=true;btn.textContent='กำลังบันทึก...';
-      try{await saveMyDisplayName(form.elements.display_name.value);}
-      catch(err){alert('บันทึกชื่อไม่สำเร็จ: '+(err.message||err));}
-      finally{btn.disabled=false;btn.textContent='💾 บันทึกชื่อ';}
-    });
     $('reviewForm').addEventListener('submit',submitReview);
     $('openReviewBtn').addEventListener('click',()=>{closeModal('shopDetailModal');openModal('reviewModal');});
     $('showAllPromotionsBtn').addEventListener('click',openAllPromotions);
@@ -3062,13 +1391,6 @@
     });
     $('nearBtn').addEventListener('click',()=>requestUserLocation({sortNearby:true}));
     $('favoritesBtn')?.addEventListener('click',openFavorites);
-    $('missionRewardForm')?.addEventListener('submit',saveMissionReward);
-    $('deliverySystemForm')?.addEventListener('submit',saveDeliverySystemSetting);
-    $('adminRiderForm')?.addEventListener('submit',saveAdminRider);
-    $('adminRiderRefreshBtn')?.addEventListener('click',loadRiderAdminPanel);
-    $('adminRiderList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-rider-toggle]');if(b)toggleAdminRider(b.dataset.riderToggle,b.dataset.riderEnabled==='true');});
-    $('missionBtn')?.addEventListener('click',openMission);
-    $('missionWelcomeStartBtn')?.addEventListener('click',()=>{closeModal('missionWelcomeModal');openMission();});
     const locateMapBtn=$('locateMapBtn');
     if(locateMapBtn)locateMapBtn.addEventListener('click',()=>userLocation?showUserLocation({coords:{latitude:userLocation.lat,longitude:userLocation.lng,accuracy:userLocation.accuracy}}):requestUserLocation());
     const useCurrentShopLocationBtn=$('useCurrentShopLocationBtn');if(useCurrentShopLocationBtn)useCurrentShopLocationBtn.addEventListener('click',useCurrentLocationForShop);
@@ -3102,30 +1424,12 @@
         renderPins(shopIndex);
         return;
       }
-      const clickedLink=ev.target.closest('a');
-      if(clickedLink){
-        const href=clickedLink.getAttribute('href')||'';
-        const analyticsCard=clickedLink.closest('.card[data-id]');
-        const currentDetailShopId=$('reviewShopId')?.value||null;
-        const analyticsShopId=analyticsCard?.dataset.id||currentDetailShopId||null;
-        const text=(clickedLink.textContent||'').toLowerCase();
-        if(href.startsWith('tel:'))trackAnalytics('phone_click',analyticsShopId);
-        else if(text.includes('นำทาง')||text.includes('google maps')||clickedLink.classList.contains('go'))trackAnalytics('navigate_click',analyticsShopId);
-        else if(text.includes('line man')||clickedLink.classList.contains('lineman'))trackAnalytics('order_lineman_click',analyticsShopId);
-        else if(text.includes('grab')||clickedLink.classList.contains('grab'))trackAnalytics('order_grab_click',analyticsShopId);
-        else if(text.includes('shopee')||clickedLink.classList.contains('shopee'))trackAnalytics('order_shopee_click',analyticsShopId);
-        else if(clickedLink.classList.contains('order-btn')||clickedLink.classList.contains('detail-order'))trackAnalytics('order_click',analyticsShopId);
-      }
-      const shareBtn=ev.target.closest('[data-share-shop]');if(shareBtn){shareShopDirectLink(shareBtn.dataset.shareShop);return;}
-      const copyBtn=ev.target.closest('[data-copy-shop-link]');if(copyBtn){copyShopDirectLink(copyBtn.dataset.copyShopLink);return;}
-      if(ev.target.closest('[data-browse-other-shops]')){browseOtherShops();return;}
       const action=ev.target.dataset.action;
       const explicitShopId=ev.target.dataset.shopId;
       const card=ev.target.closest('.card[data-id]');
       const shopId=explicitShopId||card?.dataset.id;
       if(!action||!shopId)return;
       if(action==='favorite'){toggleFavorite(shopId);return;}
-      if(action==='admin-delivery-toggle'){adminToggleDeliveryAccess(shopId,ev.target.dataset.enabled==='true');return;}
       if(action==='edit')editShop(shopId);
       if(action==='approve')setStatus(shopId,'approved');
       if(action==='reject')setStatus(shopId,'rejected');
@@ -3156,373 +1460,8 @@
 
   async function start(){
     renderHoursEditor();initMaps();bindEvents();
-    trackAnalytics('page_view');
-    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();await handleRecoveryLink();await handleShopDirectLink();showMissionWelcomeOncePerDay().catch(()=>{});}
+    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();await handleRecoveryLink();}
     catch(err){console.error(err);showNotice('เกิดข้อผิดพลาด: '+err.message,true);}
   }
   start();
-
-  document.addEventListener('click',e=>{
-    if(e.target.closest?.('#testRiderNativeAudioBtn')){
-      e.preventDefault();
-      if(window.MarketNativeAlert?.testRiderAlert){
-        window.MarketNativeAlert.testRiderAlert();
-      }else{
-        armRiderAlertAudio();playRiderAlertSound();
-      }
-      return;
-    }
-    if(e.target.closest?.('#stopRiderNativeAudioBtn')){
-      e.preventDefault();
-      try{window.marketNativeAudioTest?.stop?.();window.MarketNativeAlert?.stopRiderAlert?.();}catch(_e){}
-      stopRiderSoundRepeat?.();
-      return;
-    }
-    const accept=e.target.closest?.('[data-rider-accept-batch]');
-    if(accept){e.preventDefault();acceptRiderJob(accept.dataset.riderAcceptBatch);return;}
-    const advance=e.target.closest?.('[data-rider-advance-batch]');
-    if(advance){e.preventDefault();advanceRiderJob(advance.dataset.riderAdvanceBatch,advance.dataset.riderNext);return;}
-    const proof=e.target.closest?.('[data-rider-proof-batch]');
-    if(proof){
-      e.preventDefault();
-      const input=document.querySelector(`[data-rider-proof-input="${CSS.escape(String(proof.dataset.riderProofBatch))}"]`);
-      input?.click();
-      return;
-    }
-    if(e.target.closest?.('#refreshRiderJobsBtn')){e.preventDefault();loadRiderJobInbox();return;}
-  });
-
-  document.addEventListener('pointerdown',armRiderAlertAudio,{once:true,capture:true});
-  document.addEventListener('keydown',armRiderAlertAudio,{once:true,capture:true});
-  document.addEventListener('change',e=>{
-    const input=e.target?.closest?.('[data-rider-proof-input]');
-    if(!input)return;
-    const file=input.files?.[0];
-    if(file)submitRiderDeliveryProof(input.dataset.riderProofInput,file);
-  });
-
-  let riderPushRepairInFlight=false;
-  async function refreshRiderPushStatus({repair=true}={}){
-    const st=$('riderPushStatus'),btn=$('riderEnablePushBtn');
-    if(!st||!btn)return;
-    try{
-      if(window.marketIsNativeApp?.()){
-        await window.marketDisableWebPushForNativeApp?.({silent:true});
-        st.textContent='✅ Android App ใช้ Native Push (FCM) สำหรับงาน Rider — ไม่ใช้ Web Push ซ้ำ';
-        btn.textContent='✅ Native Push พร้อมใช้งาน';
-        btn.disabled=true;
-        btn.dataset.pushEnabled='true';
-        btn.dataset.pushVerified='true';
-        return {ok:true,reason:'native_app_uses_fcm'};
-      }
-      if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
-        st.textContent='อุปกรณ์/เบราว์เซอร์นี้ไม่รองรับ Web Push';
-        btn.style.display='none';return;
-      }
-
-      if(Notification.permission==='granted'&&typeof window.marketEnsurePushSubscription==='function'){
-        if(repair&&!riderPushRepairInFlight){
-          riderPushRepairInFlight=true;
-          st.textContent='🔄 กำลังตรวจสอบการเชื่อมต่อ Push กับเซิร์ฟเวอร์...';
-          btn.disabled=true;
-        }
-        let state;
-        try{
-          state=await window.marketEnsurePushSubscription({repair:!!repair});
-        }finally{
-          riderPushRepairInFlight=false;
-        }
-
-        if(state?.ok){
-          st.textContent=state.repaired
-            ?'✅ ซ่อมการแจ้งเตือนงาน Rider แล้ว — เครื่องนี้ลงทะเบียนกับเซิร์ฟเวอร์ใหม่เรียบร้อย'
-            :'✅ การแจ้งเตือนงาน Rider พร้อมใช้งาน — ตรวจสอบกับเซิร์ฟเวอร์แล้ว';
-          btn.textContent='✅ เปิดการแจ้งเตือนแล้ว';
-          btn.disabled=true;
-          btn.dataset.pushEnabled='true';
-          btn.dataset.pushVerified='true';
-          return state;
-        }
-
-        if(state?.reason==='missing_on_server'||state?.reason==='repair_failed'||state?.reason==='server_check_failed'){
-          st.textContent='⚠️ การแจ้งเตือนในเครื่องยังไม่เชื่อมกับเซิร์ฟเวอร์ กดปุ่มด้านล่างเพื่อซ่อม';
-          btn.textContent='🛠️ ซ่อมการแจ้งเตือนงาน Rider';
-          btn.disabled=false;
-          btn.dataset.pushEnabled='false';
-          btn.dataset.pushVerified='false';
-          return state;
-        }
-      }
-
-      const sub=Notification.permission==='granted'&&window.marketGetPushSubscription
-        ?await window.marketGetPushSubscription():null;
-      if(sub){
-        // Local subscription alone is no longer treated as proof that backend
-        // can reach this device.
-        st.textContent='⚠️ พบการแจ้งเตือนในเครื่อง แต่ยังไม่ได้ยืนยันกับเซิร์ฟเวอร์';
-        btn.textContent='🛠️ ตรวจและซ่อมการแจ้งเตือน';
-        btn.disabled=false;
-        btn.dataset.pushEnabled='false';
-        btn.dataset.pushVerified='false';
-      }else{
-        st.textContent=Notification.permission==='denied'
-          ?'❌ ปิดสิทธิ์แจ้งเตือนอยู่ กรุณาเปิด Notification ในการตั้งค่าเครื่อง/เว็บไซต์'
-          :'ยังไม่ได้เปิด Push Notification บนเครื่องนี้';
-        btn.textContent='🔔 เปิดแจ้งเตือนงาน Rider';
-        btn.disabled=false;
-        btn.dataset.pushEnabled='false';
-        btn.dataset.pushVerified='false';
-      }
-    }catch(err){
-      st.textContent='ตรวจสถานะ Push ไม่สำเร็จ: '+(err?.message||err);
-      btn.textContent='🛠️ ตรวจและซ่อมการแจ้งเตือน';
-      btn.disabled=false;
-      btn.dataset.pushVerified='false';
-    }
-  }
-
-  document.addEventListener('click',async e=>{
-    const b=e.target?.closest?.('#riderEnablePushBtn');
-    if(!b)return;
-    e.preventDefault();
-    if(b.disabled)return;
-    b.disabled=true;
-    try{
-      if(window.marketIsNativeApp?.()){await window.marketDisableWebPushForNativeApp?.({silent:true});return;}
-      if(Notification.permission==='granted'&&typeof window.marketEnsurePushSubscription==='function'){
-        const state=await window.marketEnsurePushSubscription({repair:true});
-        if(state?.ok)return;
-      }
-      if(typeof window.marketEnablePush!=='function')return alert('ระบบ Push ยังโหลดไม่เสร็จ กรุณาลองอีกครั้ง');
-      await window.marketEnablePush();
-    }finally{
-      await refreshRiderPushStatus({repair:true});
-    }
-  });
-
-  document.addEventListener('click',e=>{
-    if(e.target?.closest?.('#riderEditProfileBtn,#refreshRiderJobsBtn'))setTimeout(refreshRiderPushStatus,150);
-  });
-
-  // Notification click: open rider jobs directly after app becomes active.
-  // V0.5.22.96 keeps a pending route independent of the address bar because
-  // iOS Home Screen PWA can focus the app without preserving ?rider_jobs=1.
-  let pendingRiderNotificationUrl=null;
-  let riderDeepLinkOpening=false;
-
-  function riderDeepLinkUrl(raw=null){
-    try{
-      const u=new URL(raw||location.href,location.href);
-      return u.searchParams.get('rider_jobs')==='1'?u:null;
-    }catch(_e){return null}
-  }
-
-  async function readPersistedNotificationRoute(){
-    if(!('caches' in window))return null;
-    try{
-      const cache=await caches.open('market-notification-route-v1');
-      const key=new URL('./__notification_route__',location.href).href;
-      const res=await cache.match(key);
-      if(!res)return null;
-      const data=await res.json();
-      const age=Date.now()-Number(data?.at||0);
-      if(!data?.url||age<0||age>10*60*1000){
-        await cache.delete(key);
-        return null;
-      }
-      return String(data.url);
-    }catch(_e){return null}
-  }
-
-  async function clearPersistedNotificationRoute(){
-    if(!('caches' in window))return;
-    try{
-      const cache=await caches.open('market-notification-route-v1');
-      await cache.delete(new URL('./__notification_route__',location.href).href);
-    }catch(_e){}
-  }
-
-  async function openRiderJobsFromDeepLink(rawUrl=null){
-    if(riderDeepLinkOpening)return false;
-    let route=riderDeepLinkUrl(rawUrl||pendingRiderNotificationUrl||location.href);
-    if(!route){
-      const persisted=await readPersistedNotificationRoute();
-      route=riderDeepLinkUrl(persisted);
-      if(route)pendingRiderNotificationUrl=route.href;
-    }
-    if(!route)return false;
-
-    // refreshAuth may still be finishing when iOS launches the PWA from a push.
-    if(!session){
-      try{await refreshAuth()}catch(_e){}
-    }
-    if(!session)return false;
-
-    riderDeepLinkOpening=true;
-    try{
-      // Do not rely on stale myRiderApplication from the previous app lifecycle.
-      await loadMyRiderApplication();
-      if(myRiderApplication?.status!=='approved')return false;
-
-      await openRiderApplication();
-      await loadRiderJobInbox({quiet:true});
-
-      const batchId=route.searchParams.get('rider_batch');
-      if(batchId){
-        setTimeout(()=>{
-          const el=document.querySelector(`[data-rider-accept-batch="${CSS.escape(batchId)}"]`);
-          el?.scrollIntoView?.({block:'center',behavior:'smooth'});
-        },120);
-      }
-
-      pendingRiderNotificationUrl=null;
-      await clearPersistedNotificationRoute();
-
-      // Clean notification routing params without depending on them for routing.
-      try{
-        const u=new URL(location.href);
-        u.searchParams.delete('rider_jobs');
-        u.searchParams.delete('rider_batch');
-        history.replaceState(null,'',u.pathname+(u.searchParams.toString()?'?'+u.searchParams:'')+u.hash);
-      }catch(_e){}
-      return true;
-    }catch(err){
-      console.warn('Open rider notification deep link failed',err);
-      return false;
-    }finally{
-      riderDeepLinkOpening=false;
-    }
-  }
-
-  window.addEventListener('focus',()=>setTimeout(()=>openRiderJobsFromDeepLink(),300));
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible')setTimeout(()=>openRiderJobsFromDeepLink(),250);
-  });
-  navigator.serviceWorker?.addEventListener?.('message',ev=>{
-    if(ev.data?.type==='MARKET_NOTIFICATION_DEEPLINK'&&String(ev.data.url||'').includes('rider_jobs=1')){
-      pendingRiderNotificationUrl=String(ev.data.url);
-      setTimeout(()=>openRiderJobsFromDeepLink(pendingRiderNotificationUrl),120);
-    }
-  });
-  setTimeout(()=>{refreshRiderPushStatus();openRiderJobsFromDeepLink();},1200);
 })();
-
-/* === PWA install experience: Main v5.7.9.14 === */
-let deferredInstallPrompt = null;
-
-function isAppStandalone(){
-  return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
-}
-
-function isIOSDevice(){
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function isSamsungInternet(){
-  return /SamsungBrowser/i.test(navigator.userAgent);
-}
-
-function isAndroidDevice(){
-  return /Android/i.test(navigator.userAgent);
-}
-
-function isLineOrSocialInApp(){
-  return /Line\//i.test(navigator.userAgent) || /FBAN|FBAV|Instagram/i.test(navigator.userAgent);
-}
-
-function openCurrentPageInChrome(){
-  if(!isAndroidDevice()) return false;
-  try{
-    const u=new URL(location.href);
-    const scheme=u.protocol.replace(':','');
-    const fallback=encodeURIComponent(u.href);
-    location.href=`intent://${u.host}${u.pathname}${u.search}${u.hash}#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
-    return true;
-  }catch(err){
-    console.warn('Open Chrome failed:',err);
-    return false;
-  }
-}
-
-
-function refreshInstallButton(){
-  const btn = document.getElementById('installAppBtn');
-  const hint = document.getElementById('installAppHint');
-  if(!btn) return;
-  const installed = isAppStandalone();
-  btn.classList.toggle('hidden', installed);
-  if(hint) hint.classList.toggle('hidden', installed);
-}
-
-function showInstallInstructions(html){
-  const box = document.getElementById('installAppInstructions');
-  const modal = document.getElementById('installAppModal');
-  if(box) box.innerHTML = html;
-  if(modal) modal.classList.remove('hidden');
-}
-
-window.addEventListener('beforeinstallprompt', (event) => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  refreshInstallButton();
-});
-
-window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  refreshInstallButton();
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  refreshInstallButton();
-  const installBtn = document.getElementById('installAppBtn');
-  if(installBtn){
-    installBtn.addEventListener('click', async () => {
-      const androidExtra = isAndroidDevice() && isLineOrSocialInApp()
-        ? `<p class="install-note">หากกดดาวน์โหลดไม่ได้จาก LINE / Facebook / Instagram ให้เปิดหน้านี้ด้วย Chrome แล้วกดดาวน์โหลดอีกครั้ง</p>
-           <button type="button" class="btn" id="openChromeInstallBtn">เปิดเว็บไซต์ด้วย Chrome</button>`
-        : '';
-
-      showInstallInstructions(`
-        <div class="install-choice-section">
-          <h3>🤖 สำหรับ Android</h3>
-          <p>แนะนำให้ใช้แอป Android เพื่อรับการแจ้งเตือนออเดอร์และงาน Rider ได้เต็มรูปแบบ</p>
-          <a class="btn primary" href="./downloads/app-release.apk">⬇️ ดาวน์โหลดแอป Android</a>
-          <p class="install-note"><strong>หลังดาวน์โหลดเสร็จ</strong> ให้เปิดรายการดาวน์โหลด แล้วกดไฟล์ <strong>app-release.apk</strong> เพื่อเริ่มติดตั้งแอป<br>หาก Android แจ้งเตือนเรื่องความปลอดภัย ให้อนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เพื่อดำเนินการต่อ<br><small>เวอร์ชัน v1.0.1</small></p>
-          ${androidExtra}
-        </div>
-
-        <hr style="margin:20px 0;border:0;border-top:1px solid #e5e7eb">
-
-        <div class="install-choice-section">
-          <h3>🍎 สำหรับ iPhone / iPad</h3>
-          <p>ติดตั้งแบบ Web App ไว้บนหน้าจอโฮมได้โดยไม่ต้องดาวน์โหลด APK</p>
-          <ol>
-            <li>เปิดเว็บไซต์นี้ด้วย <b>Safari</b></li>
-            <li>กด <b>แชร์ ⬆️</b></li>
-            <li>เลือก <b>เพิ่มไปยังหน้าจอโฮม</b></li>
-            <li>กด <b>เพิ่ม</b></li>
-          </ol>
-          ${isIOSDevice() && isLineOrSocialInApp()
-            ? '<p class="install-note">ขณะนี้เปิดจากแอปอื่นอยู่ ให้เลือก “เปิดใน Safari” ก่อน แล้วทำตามขั้นตอนด้านบน</p>'
-            : ''}
-        </div>
-      `);
-    });
-  }
-
-  document.addEventListener('click',(event)=>{
-    const btn=event.target?.closest?.('#openChromeInstallBtn');
-    if(btn){
-      event.preventDefault();
-      openCurrentPageInChrome();
-    }
-  });
-
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=0.5.22.130-r1', {scope:'./',updateViaCache:'none'}).catch((err) => {
-        console.warn('Service worker registration failed:', err);
-      });
-    });
-  }
-});
