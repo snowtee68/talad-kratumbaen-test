@@ -2165,6 +2165,68 @@
     renderShops();
   }
 
+
+  // v0.5.22.146: shared, on-demand location permission/help UI.
+  // Geolocation is requested only after the user invokes a feature that needs it.
+  window.KBLocationHelp = window.KBLocationHelp || {
+    close(){
+      document.getElementById('kbLocationHelpModal')?.remove();
+    },
+    show({error,retry,context='ฟังก์ชันนี้'}={}){
+      this.close();
+      const code=Number(error?.code||0);
+      const denied=code===1;
+      const unavailable=code===2;
+      const isiOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isAndroid=/Android/i.test(navigator.userAgent);
+      let title='📍 กรุณาเปิดการเข้าถึงตำแหน่ง';
+      let detail=denied
+        ? `คุณยังไม่ได้อนุญาตให้ใช้ตำแหน่งสำหรับ ${context}`
+        : unavailable
+          ? 'ไม่พบตำแหน่งปัจจุบัน กรุณาเปิด GPS / Location Services ของเครื่อง'
+          : 'ยังไม่สามารถอ่านตำแหน่งได้ กรุณาตรวจสอบการตั้งค่าตำแหน่งแล้วลองอีกครั้ง';
+      let steps=isiOS
+        ? 'iPhone/iPad: เปิด Settings → Privacy & Security → Location Services และตรวจสอบสิทธิ์ของ Safari/แอปที่กำลังใช้งาน'
+        : isAndroid
+          ? 'Android: เปิด Location ของเครื่อง และตรวจสอบสิทธิ์ Location ของ Chrome/แอปที่กำลังใช้งาน'
+          : 'เบราว์เซอร์: เปิดสิทธิ์ Location ของเว็บไซต์นี้จากไอคอนด้านซ้ายของแถบที่อยู่ แล้วลองอีกครั้ง';
+      const wrap=document.createElement('div');
+      wrap.id='kbLocationHelpModal';
+      wrap.setAttribute('role','dialog');
+      wrap.setAttribute('aria-modal','true');
+      wrap.innerHTML=`<div class="kb-location-help-card">
+        <button type="button" class="kb-location-help-x" aria-label="ปิด">×</button>
+        <h3>${title}</h3>
+        <p>${detail}</p>
+        <div class="kb-location-help-steps">${steps}</div>
+        <div class="kb-location-help-actions">
+          <button type="button" class="kb-location-help-cancel">ไว้ภายหลัง</button>
+          <button type="button" class="kb-location-help-retry">ลองอีกครั้ง</button>
+        </div>
+      </div>`;
+      Object.assign(wrap.style,{position:'fixed',inset:'0',zIndex:'2147483646',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:'18px'});
+      const card=wrap.querySelector('.kb-location-help-card');
+      Object.assign(card.style,{width:'min(440px,100%)',maxHeight:'85vh',overflow:'auto',background:'#fff',borderRadius:'18px',padding:'22px',boxShadow:'0 18px 60px rgba(0,0,0,.28)',position:'relative',color:'#222'});
+      Object.assign(wrap.querySelector('h3').style,{margin:'0 32px 10px 0',fontSize:'20px'});
+      Object.assign(wrap.querySelector('p').style,{margin:'0 0 12px',lineHeight:'1.55'});
+      Object.assign(wrap.querySelector('.kb-location-help-steps').style,{background:'#f6f7f9',borderRadius:'12px',padding:'12px',fontSize:'14px',lineHeight:'1.55'});
+      Object.assign(wrap.querySelector('.kb-location-help-actions').style,{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'16px',flexWrap:'wrap'});
+      for(const b of wrap.querySelectorAll('button')) Object.assign(b.style,{border:'0',borderRadius:'10px',padding:'10px 14px',fontWeight:'700',cursor:'pointer'});
+      Object.assign(wrap.querySelector('.kb-location-help-retry').style,{background:'#d71920',color:'#fff'});
+      Object.assign(wrap.querySelector('.kb-location-help-cancel').style,{background:'#eee',color:'#333'});
+      Object.assign(wrap.querySelector('.kb-location-help-x').style,{position:'absolute',right:'12px',top:'10px',background:'transparent',fontSize:'26px',padding:'2px 8px'});
+      const close=()=>this.close();
+      wrap.querySelector('.kb-location-help-x').addEventListener('click',close);
+      wrap.querySelector('.kb-location-help-cancel').addEventListener('click',close);
+      wrap.addEventListener('click',e=>{if(e.target===wrap)close();});
+      wrap.querySelector('.kb-location-help-retry').addEventListener('click',()=>{
+        close();
+        if(typeof retry==='function') setTimeout(retry,120);
+      });
+      document.body.appendChild(wrap);
+    }
+  };
+
   function requestUserLocation({sortNearby=false}={}){
     if(!navigator.geolocation)return alert('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง');
     const btn=$('nearBtn');
@@ -2178,8 +2240,7 @@
       },
       error=>{
         if(btn){btn.disabled=false;btn.textContent=old||'📍 ร้านใกล้ฉัน';}
-        const message=error.code===1?'กรุณาอนุญาตให้เว็บไซต์ใช้ตำแหน่งของคุณ':error.code===2?'ไม่พบตำแหน่งปัจจุบัน กรุณาเปิด GPS หรือ Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
-        alert(message);
+        window.KBLocationHelp?.show({error,retry:()=>requestUserLocation({sortNearby}),context:'ร้านใกล้ฉัน'});
       },
       {enableHighAccuracy:true,timeout:12000,maximumAge:60000}
     );
@@ -2575,9 +2636,10 @@
       if(status)status.textContent=`บันทึกตำแหน่งแล้ว${accuracy?` • ความแม่นยำประมาณ ±${accuracy} เมตร`:''} กรุณาตรวจสอบก่อนกดบันทึกร้าน`;
       if(btn){btn.disabled=false;btn.textContent='✓ ใช้ตำแหน่งนี้แล้ว';}
     },err=>{
-      const msg=err.code===1?'กรุณาอนุญาตให้เว็บไซต์ใช้ตำแหน่งของคุณ':err.code===2?'ไม่พบตำแหน่ง กรุณาเปิด GPS / Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
+      const msg=err.code===1?'ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง':err.code===2?'ไม่พบตำแหน่ง กรุณาเปิด GPS / Location Services':'ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่';
       if(status)status.textContent=msg;
       if(btn){btn.disabled=false;btn.textContent='📍 ใช้ตำแหน่งปัจจุบันของฉัน';}
+      window.KBLocationHelp?.show({error:err,retry:useCurrentLocationForShop,context:'การปักหมุดร้าน'});
     },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
   }
 
