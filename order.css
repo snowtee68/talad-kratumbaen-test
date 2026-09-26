@@ -205,3 +205,20 @@
 
 /* v0.5.22.147: delivery map picker */
 .delivery-location-actions{align-items:stretch}.delivery-map-picker{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:14px}.delivery-map-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.58)}.delivery-map-panel{position:relative;width:min(720px,100%);background:#fff;border-radius:20px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.35)}.delivery-map-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}.delivery-map-head b{font-size:20px}.delivery-map-head div div{font-size:13px;color:#666;margin-top:3px}.delivery-map-head button{border:0;background:#f1f1f1;border-radius:50%;width:38px;height:38px;font-size:24px;line-height:1;cursor:pointer}.delivery-picker-map{height:min(58vh,520px);min-height:330px;border-radius:14px;overflow:hidden;border:1px solid #ddd}.delivery-map-note{font-size:13px;color:#6b5a00;background:#fff8d9;border-radius:10px;padding:9px 11px;margin-top:10px}.delivery-map-confirm{width:100%;margin-top:10px;font-size:16px}@media(max-width:650px){.delivery-map-picker{padding:8px}.delivery-map-panel{padding:10px;border-radius:16px}.delivery-picker-map{height:55vh;min-height:300px}.delivery-location-actions>button{flex:1 1 100%}}
+
+
+/* V0.5.22.147-R1: keep Delivery Map Picker above checkout/order modal */
+#deliveryMapPickerModal,
+#deliveryMapModal,
+.delivery-map-picker-modal,
+.delivery-map-modal {
+  z-index: 2147483000 !important;
+}
+
+#deliveryMapPickerModal .modal-content,
+#deliveryMapModal .modal-content,
+.delivery-map-picker-modal .modal-content,
+.delivery-map-modal .modal-content {
+  position: relative;
+  z-index: 2147483001 !important;
+}
