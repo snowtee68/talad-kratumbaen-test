@@ -2,7 +2,7 @@
   'use strict';
   const cfg=window.APP_CONFIG||{};
   if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY||!window.supabase){console.warn('Order module: Supabase not configured');return;}
-  const db=window.MARKET_SUPABASE_CLIENT||supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
   const CART_KEY='talad_multishop_cart_v1';
   // TEST MODE: keep ordering hidden from the public until the flow is fully tested.
   // Change ORDER_PUBLIC_ENABLED to true when ready to launch publicly.
@@ -13,9 +13,6 @@
   let pendingOrderNotificationUrl=null,orderDeepLinkOpening=false;
   const ORDER_NOTIFY_KEY='talad_order_notify_v042';
   let orderNotifyTimer=null,orderNotifyRealtime=null,orderDeliveryRealtime=null,orderNotifyRealtimeDebounce=null,orderNotifyBusy=false,orderNotifyBaseline=false,orderNotifyAudioArmed=false,orderNotifySoundRepeatTimer=null;
-  // V0.5.22.148: Realtime is demand-driven. Sellers listen for their shops; buyers listen only while they have active work.
-  let orderRealtimeContext={sellerIds:[],customerActive:false,deliveryGroupIds:[]},orderRealtimeSignature='',orderLifecycleProbeAt=0;
-  const ORDER_ACTIVE_STATUSES=new Set(['pending_shop','awaiting_customer_confirmation','awaiting_payment','payment_review','preparing','ready']);
   let customerOrderTab='waiting',sellerOrderTab='action',customerOrderPage=1,sellerOrderPage=1,orderSearchTerm='',orderDateFilter='today',customerFocusGroupId=null,customerFocusOrderId=null;
   const ORDER_UI_VERSION='0.5.20.42-restore';
   let orderNotifyState={statuses:{},viewed:{},reminded:{},unread:0,activeSellerOrders:0};
@@ -289,88 +286,17 @@
   function markNotificationAreaViewed(){
     orderNotifyState.unread=0;saveOrderNotifyState();renderOrderNotifyBadge();stopOrderSoundRepeat();document.getElementById('orderNotifyBanner')?.classList.remove('show');
   }
-  function clearOrderRealtimeChannels(){
-    if(orderNotifyRealtimeDebounce){clearTimeout(orderNotifyRealtimeDebounce);orderNotifyRealtimeDebounce=null}
-    if(orderNotifyRealtime){try{db.removeChannel(orderNotifyRealtime)}catch(_e){}orderNotifyRealtime=null}
-    if(orderDeliveryRealtime){try{db.removeChannel(orderDeliveryRealtime)}catch(_e){}orderDeliveryRealtime=null}
-    orderRealtimeSignature='';
-  }
   function stopOrderNotifications(){
     stopOrderSoundRepeat();
     if(orderNotifyTimer){clearInterval(orderNotifyTimer);orderNotifyTimer=null}
-    clearOrderRealtimeChannels();
-    orderRealtimeContext={sellerIds:[],customerActive:false,deliveryGroupIds:[]};
+    if(orderNotifyRealtimeDebounce){clearTimeout(orderNotifyRealtimeDebounce);orderNotifyRealtimeDebounce=null}
+    if(orderNotifyRealtime){try{db.removeChannel(orderNotifyRealtime)}catch(_e){}orderNotifyRealtime=null}
+    if(orderDeliveryRealtime){try{db.removeChannel(orderDeliveryRealtime)}catch(_e){}orderDeliveryRealtime=null}
     orderNotifyBusy=false;orderNotifyBaseline=false;
   }
   async function getMySellerShopIds(){
     if(!session?.user?.id)return[];
-    const {data}=await db.from('market_shops').select('id,status').eq('owner_id',session.user.id);
-    return(data||[]).filter(x=>!x.status||x.status==='approved').map(x=>x.id);
-  }
-  function orderStillNeedsRealtime(o){
-    if(!o)return false;
-    if(o.refund_required&&String(o.refund_status||'pending')!=='completed')return true;
-    if(o.pickup_completed_at)return false;
-    const groupStatus=String(o.group?.status||'');
-    if(groupStatus==='cancelled'||groupStatus==='completed')return false;
-    return ORDER_ACTIVE_STATUSES.has(String(o.status||''));
-  }
-  function realtimeIdFilter(column,ids){
-    const clean=[...new Set((ids||[]).filter(Boolean).map(String))];
-    if(!clean.length)return null;
-    if(clean.length===1)return `${column}=eq.${clean[0]}`;
-    if(clean.length<=100)return `${column}=in.(${clean.join(',')})`;
-    return null; // rare fallback: keep correctness if an owner has >100 matching IDs
-  }
-  function updateOrderRealtimeContext(sellerIds,sellerOrders,customerOrders){
-    const activeCustomer=(customerOrders||[]).filter(orderStillNeedsRealtime);
-    const activeSeller=(sellerOrders||[]).filter(orderStillNeedsRealtime);
-    orderRealtimeContext={
-      sellerIds:[...new Set((sellerIds||[]).filter(Boolean).map(String))],
-      customerActive:activeCustomer.length>0,
-      deliveryGroupIds:[...new Set([...activeCustomer,...activeSeller].map(o=>o.group_id).filter(Boolean).map(String))]
-    };
-  }
-  function applyOrderRealtimeSubscriptions(){
-    if(!session?.user?.id||!canUseOrders())return;
-    const sellerIds=orderRealtimeContext.sellerIds||[];
-    const customerActive=!!orderRealtimeContext.customerActive;
-    const groupIds=orderRealtimeContext.deliveryGroupIds||[];
-    const needOrders=customerActive||sellerIds.length>0;
-    const signature=JSON.stringify({u:session.user.id,s:sellerIds.slice().sort(),c:customerActive,g:groupIds.slice().sort()});
-    if(!needOrders){
-      if(orderNotifyTimer){clearInterval(orderNotifyTimer);orderNotifyTimer=null}
-      clearOrderRealtimeChannels();
-      return;
-    }
-    if(signature===orderRealtimeSignature&&orderNotifyRealtime){
-      if(!orderNotifyTimer)orderNotifyTimer=setInterval(()=>{if(document.visibilityState==='visible')pollOrderNotifications()},300000);
-      return;
-    }
-    clearOrderRealtimeChannels();
-    orderRealtimeSignature=signature;
-    try{
-      let orderChannel=db.channel(`market-orders-${session.user.id}-${Date.now()}`),handlers=0;
-      if(customerActive){
-        orderChannel=orderChannel.on('postgres_changes',{event:'*',schema:'public',table:'market_orders',filter:`customer_id=eq.${session.user.id}`},scheduleRealtimeOrderRefresh);
-        handlers++;
-      }
-      if(sellerIds.length){
-        const filter=realtimeIdFilter('shop_id',sellerIds);
-        orderChannel=orderChannel.on('postgres_changes',filter?{event:'*',schema:'public',table:'market_orders',filter}:{event:'*',schema:'public',table:'market_orders'},scheduleRealtimeOrderRefresh);
-        handlers++;
-      }
-      if(handlers){
-        orderNotifyRealtime=orderChannel.subscribe(status=>{if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Order Realtime:',status)});
-      }
-      if(groupIds.length){
-        const filter=realtimeIdFilter('group_id',groupIds);
-        orderDeliveryRealtime=db.channel(`market-delivery-${session.user.id}-${Date.now()}`)
-          .on('postgres_changes',filter?{event:'UPDATE',schema:'public',table:'market_delivery_batches',filter}:{event:'UPDATE',schema:'public',table:'market_delivery_batches'},handleDeliveryRealtime)
-          .subscribe(status=>{if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Delivery Realtime:',status)});
-      }
-    }catch(err){console.warn('Order Realtime setup:',err?.message||err)}
-    if(!orderNotifyTimer)orderNotifyTimer=setInterval(()=>{if(document.visibilityState==='visible')pollOrderNotifications()},300000);
+    const {data}=await db.from('market_shops').select('id').eq('owner_id',session.user.id);return(data||[]).map(x=>x.id);
   }
   async function pollOrderNotifications(){
     if(orderNotifyBusy||!session||!canUseOrders())return;orderNotifyBusy=true;
@@ -378,7 +304,7 @@
       const sellerIds=await getMySellerShopIds(),events=[],now=Date.now();
       let sellerOrders=[],customerOrders=[];
       if(sellerIds.length){
-        const {data}=await db.from('market_orders').select('id,shop_id,group_id,status,created_at,updated_at,shop_response_due_at,payment_submitted_at,shop_viewed_at,pickup_completed_at,refund_required,refund_status,group:market_delivery_groups(status,fulfillment_method)').in('shop_id',sellerIds).order('created_at',{ascending:false}).limit(100);
+        const {data}=await db.from('market_orders').select('id,shop_id,status,created_at,updated_at,shop_response_due_at,payment_submitted_at,shop_viewed_at').in('shop_id',sellerIds).order('created_at',{ascending:false}).limit(100);
         sellerOrders=data||[];
       }
       // Always keep the nav badge synced with real current seller orders.
@@ -387,11 +313,9 @@
       renderOrderNotifyBadge();
       if(orderNotifyState.activeSellerOrders===0)stopOrderSoundRepeat();
       {
-        const {data}=await db.from('market_orders').select('id,status,created_at,updated_at,shop_id,group_id,pickup_completed_at,refund_required,refund_status,group:market_delivery_groups(status,fulfillment_method)').eq('customer_id',session.user.id).order('created_at',{ascending:false}).limit(100);
+        const {data}=await db.from('market_orders').select('id,status,created_at,updated_at,shop_id').eq('customer_id',session.user.id).order('created_at',{ascending:false}).limit(100);
         customerOrders=data||[];
       }
-      updateOrderRealtimeContext(sellerIds,sellerOrders,customerOrders);
-      applyOrderRealtimeSubscriptions();
       const sellerShopIdSet=new Set(sellerIds.map(String));
       const all=[...sellerOrders.map(o=>({role:'seller',...o})),...customerOrders.map(o=>({role:'customer',...o}))];
       for(const o of all){
@@ -562,17 +486,24 @@
         status==='completed'?'จัดส่งสำเร็จ':'สถานะ Delivery อัปเดตแล้ว';
       const target=sellerTarget||{role:'customer',groupId:batch.group_id,batchId};
       showOrderNotifyBanner('🛵 อัปเดต Delivery',detail,1,{target});
-      // Re-evaluate shortly after a terminal delivery state so finished buyers release Realtime promptly.
-      if(status==='completed'||status==='cancelled')setTimeout(()=>pollOrderNotifications(),1200);
     }catch(err){console.warn('Delivery realtime notification:',err?.message||err)}
   }
 
   async function startOrderNotifications(){
     if(!session||!canUseOrders())return;
     stopOrderNotifications();loadOrderNotifyState();
-    // Initial sync determines whether this account actually needs Realtime.
-    // Idle buyers stop here with zero Realtime channels; sellers and active buyers subscribe selectively.
+    // One initial sync, then Realtime is the primary update path.
     await pollOrderNotifications();
+    try{
+      orderNotifyRealtime=db.channel(`market-orders-${session.user.id}-${Date.now()}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'market_orders'},scheduleRealtimeOrderRefresh)
+        .subscribe(status=>{if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Order Realtime:',status)});
+      orderDeliveryRealtime=db.channel(`market-delivery-${session.user.id}-${Date.now()}`)
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'market_delivery_batches'},handleDeliveryRealtime)
+        .subscribe(status=>{if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Delivery Realtime:',status)});
+    }catch(err){console.warn('Order Realtime setup:',err?.message||err)}
+    // Low-frequency safety net only: 5 minutes instead of every 15 seconds.
+    orderNotifyTimer=setInterval(()=>{if(document.visibilityState==='visible')pollOrderNotifications()},300000);
   }
   function markSellerOrdersViewed(shopId){
     if(!shopId)return;
@@ -585,12 +516,6 @@
   function wire(){
     document.addEventListener('pointerdown',armOrderNotificationAudio,{once:true,capture:true});
     document.addEventListener('keydown',armOrderNotificationAudio,{once:true,capture:true});
-    document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState!=='visible'||!session||!canUseOrders())return;
-      if(orderNotifyRealtime||orderDeliveryRealtime||orderNotifyTimer)return;
-      const now=Date.now();if(now-orderLifecycleProbeAt<60000)return;orderLifecycleProbeAt=now;
-      pollOrderNotifications();
-    });
     document.addEventListener('click',e=>{
     const switchPickup=e.target.closest?.('[data-switch-pickup-batch]');
     if(switchPickup){e.preventDefault();switchDeliveryToPickup(switchPickup.dataset.switchPickupBatch);return;}
@@ -1250,9 +1175,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       if(couponError)alert('ออเดอร์ถูกสร้างแล้ว แต่คูปองยังไม่ถูกหัก: '+couponError.message+'\nกรุณาตรวจยอดก่อนชำระเงิน');
     }
     sendOrderPush('new_order',{group_id:createdGroupId});
-    saveCart([]);
-    await startOrderNotifications();
-    await showCheckoutResult(createdGroupId);
+    saveCart([]);await showCheckoutResult(createdGroupId);
   }
   async function showCheckoutResult(groupId){
     customerFocusGroupId=String(groupId||'');
