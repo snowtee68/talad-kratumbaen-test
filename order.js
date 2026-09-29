@@ -2,7 +2,10 @@
   'use strict';
   const cfg=window.APP_CONFIG||{};
   if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY||!window.supabase){console.warn('Order module: Supabase not configured');return;}
-  const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  // R8.2: reuse the main app Supabase client when available. This only consolidates
+  // the underlying Realtime socket; existing Order/Delivery subscriptions stay unchanged.
+  const db=window.MARKET_SUPABASE_CLIENT||supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  if(!window.MARKET_SUPABASE_CLIENT)window.MARKET_SUPABASE_CLIENT=db;
   const CART_KEY='talad_multishop_cart_v1';
   // TEST MODE: keep ordering hidden from the public until the flow is fully tested.
   // Change ORDER_PUBLIC_ENABLED to true when ready to launch publicly.
