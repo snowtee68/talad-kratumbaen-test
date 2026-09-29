@@ -621,6 +621,8 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       if(e.target.closest('#enableSellerPushBtn'))return enableSellerPush();
       if(e.target.closest('#disableSellerPushBtn'))return disableSellerPush();
       if(e.target.closest('#testSellerPushBtn'))return testSellerPush();
+      if(e.target.closest('#testSellerNativePushBtn'))return testNativePush('seller');
+      if(e.target.closest('#testOrderNativePushBtn'))return testNativePush('customer');
       if(e.target.closest('#testSellerNativeAudioBtn')){
         if(window.MarketNativeAlert?.testOrderAlert)window.MarketNativeAlert.testOrderAlert();
         else{armOrderNotificationAudio();playOrderNotificationSound();}
@@ -1324,9 +1326,57 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       return {ok:false,reason:'repair_failed',sub,error:err?.message||String(err)};
     }
   }
+  function isNativeMarketApp(){
+    try{if(window.marketIsNativeApp?.())return true;}catch(_err){}
+    try{if(window.Capacitor?.isNativePlatform?.())return true;}catch(_err){}
+    return Boolean(window.MarketNativeAlert);
+  }
+
+  async function testNativePush(source='seller'){
+    if(!session)return requireLogin();
+    if(!isNativeMarketApp())return alert('ฟังก์ชันนี้ใช้สำหรับ Android App เท่านั้น');
+    const btnId=source==='customer'?'testOrderNativePushBtn':'testSellerNativePushBtn';
+    const btn=document.getElementById(btnId),old=btn?.textContent||'📲 ทดสอบ Native Push จริง';
+    if(btn){btn.disabled=true;btn.textContent='⏳ กำลังตรวจและส่ง FCM...';}
+    let received=false;
+    const onReceived=()=>{received=true;};
+    window.addEventListener('market:native-push-test-received',onReceived,{once:true});
+    try{
+      const reg=await window.marketEnsureNativePushRegistration?.({force:true,requestPermission:true});
+      if(reg&&reg.ok===false&&(reg.reason==='permission_denied'||reg.reason==='no_token')){
+        throw new Error(reg.reason==='permission_denied'?'Android ยังไม่ได้อนุญาตการแจ้งเตือน':'ยังไม่พบ FCM token ของเครื่องนี้');
+      }
+      const {data,error}=await db.functions.invoke('send-order-push',{body:{event:'test_native_push'}});
+      if(error)throw error;
+      const nativeSent=Number(data?.native_sent||0);
+      if(nativeSent<1)throw new Error(data?.reason==='no_native_token'?'ไม่พบ Native FCM token ที่ Active ของบัญชีนี้':'Firebase ยังไม่ได้รับ Native Push ทดสอบ');
+      // Safety: a real-path test uses the same native alert service as an order.
+      // Stop it automatically even if the Capacitor foreground event is delayed.
+      setTimeout(()=>{try{window.marketNativeAudioTest?.stop?.();window.MarketNativeAlert?.stopAlert?.();}catch(_e){}},4500);
+      await new Promise(resolve=>setTimeout(resolve,900));
+      alert(received
+        ?`✅ Native Push จริงทำงานแล้ว — Server → Firebase → Android สำเร็จ (${nativeSent} เครื่อง)`
+        :`✅ Firebase รับ Native Push ทดสอบแล้ว ${nativeSent} เครื่อง\nหากเครื่องนี้ไม่มีเสียง/Popup ให้ตรวจสิทธิ์แจ้งเตือนของ Android`);
+    }catch(err){
+      alert('ทดสอบ Native Push ไม่สำเร็จ: '+(err?.message||err));
+    }finally{
+      window.removeEventListener('market:native-push-test-received',onReceived);
+      if(btn){btn.disabled=false;btn.textContent=old;}
+    }
+  }
+
   async function refreshOrderPushUI(){
-    const st=document.getElementById('orderPushStatus'),on=document.getElementById('enableOrderPushBtn'),off=document.getElementById('disableOrderPushBtn'),test=document.getElementById('testOrderPushBtn');
+    const st=document.getElementById('orderPushStatus'),on=document.getElementById('enableOrderPushBtn'),off=document.getElementById('disableOrderPushBtn'),test=document.getElementById('testOrderPushBtn'),nativeTest=document.getElementById('testOrderNativePushBtn');
     if(!st)return;
+    if(isNativeMarketApp()){
+      const state=await window.marketEnsureNativePushRegistration?.({force:false,requestPermission:false});
+      const token=String(window.marketNativeFcmToken||'').trim();
+      const ready=!!token&&state?.ok!==false;
+      st.innerHTML=ready?'✅ <b>Android App ลงทะเบียน Native Push (FCM) แล้ว</b><br><small>ระบบจะตรวจและซ่อม token อัตโนมัติเมื่อเปิด/กลับเข้าแอป</small>':(state?.reason==='permission_denied'?'⚠️ <b>Android ปิดสิทธิ์การแจ้งเตือน</b><br><small>เปิดสิทธิ์ Notification แล้วกด “ทดสอบ Native Push จริง”</small>':'⚠️ <b>ยังไม่พบ Native FCM token ที่พร้อมใช้งาน</b><br><small>กด “ทดสอบ Native Push จริง” เพื่อขอสิทธิ์และลงทะเบียนใหม่</small>');
+      if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';if(nativeTest)nativeTest.style.display='';
+      return state;
+    }
+    if(nativeTest)nativeTest.style.display='none';
     if(!('serviceWorker' in navigator)||!('PushManager' in window)){st.textContent='อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ Web Push';if(on)on.style.display='none';if(test)test.style.display='none';return;}
     try{
       const perm=Notification.permission;
@@ -1405,8 +1455,17 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   }
 
   async function refreshSellerPushUI(){
-    const st=document.getElementById('sellerPushStatus'),on=document.getElementById('enableSellerPushBtn'),off=document.getElementById('disableSellerPushBtn'),test=document.getElementById('testSellerPushBtn');
+    const st=document.getElementById('sellerPushStatus'),on=document.getElementById('enableSellerPushBtn'),off=document.getElementById('disableSellerPushBtn'),test=document.getElementById('testSellerPushBtn'),nativeTest=document.getElementById('testSellerNativePushBtn');
     if(!st)return;
+    if(isNativeMarketApp()){
+      const state=await window.marketEnsureNativePushRegistration?.({force:false,requestPermission:false});
+      const token=String(window.marketNativeFcmToken||'').trim();
+      const ready=!!token&&state?.ok!==false;
+      st.innerHTML=ready?'✅ <b>Native Push (FCM) ของ Android ลงทะเบียนแล้ว</b><br><small>ระบบจะ re-register และเปิด token ปัจจุบันให้อัตโนมัติเมื่อเปิด/กลับเข้าแอป โดยไม่ผูกกับ Realtime</small>':(state?.reason==='permission_denied'?'⚠️ <b>Android ปิดสิทธิ์การแจ้งเตือน</b><br><small>เปิดสิทธิ์ Notification แล้วกด “ทดสอบ Native Push จริง”</small>':'⚠️ <b>ยังไม่พบ Native FCM token ที่พร้อมใช้งาน</b><br><small>กด “ทดสอบ Native Push จริง” เพื่อขอสิทธิ์และซ่อมการลงทะเบียน</small>');
+      if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';if(nativeTest)nativeTest.style.display='';
+      return state;
+    }
+    if(nativeTest)nativeTest.style.display='none';
     if(!('serviceWorker' in navigator)||!('PushManager' in window)){
       st.textContent='อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ Web Push';
       if(on)on.style.display='none';if(off)off.style.display='none';if(test)test.style.display='none';
@@ -1668,7 +1727,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     if(!session)return requireLogin();
     // Strict role separation: buyer screen never renders seller controls.
     if(tab==='seller')return openSellerOrdersFromNav();
-    openModal(`<h2 class="mo-title">🛒 ออเดอร์ที่ฉันสั่งซื้อ</h2><div id="orderPushSettings" class="payment-card"><b>🔔 การแจ้งเตือนบนมือถือ</b><div class="mo-muted" id="orderPushStatus">กำลังตรวจสอบ...</div><div class="mo-actions"><button id="enableOrderPushBtn" class="mo-primary">เปิดการแจ้งเตือนบนมือถือ</button><button id="disableOrderPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button><button id="testOrderPushBtn" class="mo-secondary" style="display:none">🔔 ส่งแจ้งเตือนทดสอบ</button></div></div><div id="hubContent">กำลังโหลด...</div>`,true);await refreshOrderPushUI();await renderCustomerHub(document.getElementById('hubContent'));
+    openModal(`<h2 class="mo-title">🛒 ออเดอร์ที่ฉันสั่งซื้อ</h2><div id="orderPushSettings" class="payment-card"><b>🔔 การแจ้งเตือนบนมือถือ</b><div class="mo-muted" id="orderPushStatus">กำลังตรวจสอบ...</div><div class="mo-actions"><button id="enableOrderPushBtn" class="mo-primary">เปิดการแจ้งเตือนบนมือถือ</button><button id="disableOrderPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button><button id="testOrderPushBtn" class="mo-secondary" style="display:none">🔔 ส่งแจ้งเตือนทดสอบ</button><button id="testOrderNativePushBtn" class="mo-primary" style="display:none">📲 ทดสอบ Native Push จริง</button></div></div><div id="hubContent">กำลังโหลด...</div>`,true);await refreshOrderPushUI();await renderCustomerHub(document.getElementById('hubContent'));
   }
   async function renderHubTab(tab){const box=document.getElementById('hubContent');if(!box)return;if(tab==='seller')return openSellerOrdersFromNav();return renderCustomerHub(box);}
   async function guideCustomerToGroup(groupId,message=''){
@@ -1907,6 +1966,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
           <button id="enableSellerPushBtn" class="mo-primary">เปิดแจ้งเตือนออเดอร์ร้าน</button>
           <button id="disableSellerPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button>
           <button id="testSellerPushBtn" class="mo-secondary" style="display:none">🔔 ส่งแจ้งเตือนทดสอบ</button>
+          <button id="testSellerNativePushBtn" class="mo-primary" style="display:none">📲 ทดสอบ Native Push จริง</button>
           <button id="testSellerNativeAudioBtn" class="mo-primary">🔊 ทดสอบเสียงออเดอร์</button>
           <button id="stopSellerNativeAudioBtn" class="mo-secondary">⏹ หยุดเสียง</button>
         </div>

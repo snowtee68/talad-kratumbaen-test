@@ -2418,8 +2418,22 @@
     return 'com.krathumbaen.together.test';
   }
 
+  function isNativeMarketApp(){
+    try{if(window.Capacitor?.isNativePlatform?.())return true;}catch(_err){}
+    return Boolean(window.MarketNativeAlert);
+  }
+
+  // R8.1: keep Native FCM registration independent from Realtime/Web Push.
+  // Resource-safe: token changes/login sync immediately; passive resume checks are throttled.
+  // The native bridge owns Capacitor registration; this layer only keeps the
+  // signed-in user's current token active in Supabase and rechecks on resume.
+  let nativePushRegistrationInFlight=null;
+  let nativePushLastSyncAt=0;
+  let nativePushLastSyncedToken='';
+  let nativePushLastSyncedUserId='';
+  const NATIVE_PUSH_SYNC_TTL_MS=60*60*1000;
+
   // R16: local Native audio test helper. No order is created and no Push is sent.
-  // This is intentionally exposed only as a diagnostic API; normal web/PWA behavior is unchanged.
   window.marketNativeAudioTest={
     appId:()=>nativePushAppId(),
     order:()=>{try{window.MarketNativeAlert?.testOrderAlert?.();return true}catch(_err){return false}},
@@ -2427,14 +2441,18 @@
     stop:()=>{try{if(window.MarketNativeAlert?.stopAlert)window.MarketNativeAlert.stopAlert();else window.MarketNativeAlert?.stopRiderAlert?.();return true}catch(_err){return false}}
   };
 
-  async function syncNativePushToken(){
-    if(!db || !session?.user?.id) return;
-    const token=String(window.marketNativeFcmToken||'').trim();
-    if(!token) return;
+  async function syncNativePushToken({token='',force=false}={}){
+    if(!db || !session?.user?.id)return {ok:false,reason:'not_logged_in'};
+    const current=String(token||window.marketNativeFcmToken||'').trim();
+    if(!current)return {ok:false,reason:'no_token'};
+    const now=Date.now();
+    if(!force&&session.user.id===nativePushLastSyncedUserId&&current===nativePushLastSyncedToken&&(now-nativePushLastSyncAt)<NATIVE_PUSH_SYNC_TTL_MS){
+      return {ok:true,reason:'recently_synced',token:current};
+    }
     try{
       const payload={
         user_id:session.user.id,
-        fcm_token:token,
+        fcm_token:current,
         platform:'android',
         app_id:nativePushAppId(),
         device_name:String(navigator.userAgent||'Android').slice(0,250),
@@ -2443,15 +2461,67 @@
       };
       const {error}=await db.from('market_native_push_tokens')
         .upsert(payload,{onConflict:'fcm_token'});
-      if(error) throw error;
-      console.log('[NativePush] token synced for signed-in user');
+      if(error)throw error;
+      nativePushLastSyncAt=now;
+      nativePushLastSyncedToken=current;
+      nativePushLastSyncedUserId=session.user.id;
+      console.log('[NativePush] token synced/activated for signed-in user');
+      return {ok:true,reason:'synced',token:current};
     }catch(err){
       console.warn('[NativePush] token sync failed',err);
+      return {ok:false,reason:'sync_failed',error:err?.message||String(err)};
     }
   }
 
-  window.addEventListener('market:native-push-registration',()=>{
-    setTimeout(()=>syncNativePushToken(),0);
+  async function ensureNativePushRegistration({force=false,requestPermission=false}={}){
+    if(!isNativeMarketApp())return {ok:false,reason:'not_native_app'};
+    if(nativePushRegistrationInFlight)return nativePushRegistrationInFlight;
+    nativePushRegistrationInFlight=(async()=>{
+      try{
+        if(typeof window.marketNativeEnsurePushRegistration==='function'){
+          const state=await window.marketNativeEnsurePushRegistration({force,requestPermission});
+          if(state?.reason==='permission_denied')return state;
+          // Give the bridge registration callback a brief moment to refresh the token.
+          await new Promise(resolve=>setTimeout(resolve,200));
+        }
+      }catch(err){
+        console.warn('[NativePush] native re-register bridge failed',err);
+      }
+      return await syncNativePushToken({force});
+    })().finally(()=>{nativePushRegistrationInFlight=null;});
+    return nativePushRegistrationInFlight;
+  }
+
+  window.marketIsNativeApp=isNativeMarketApp;
+  window.marketEnsureNativePushRegistration=ensureNativePushRegistration;
+  window.marketSyncNativePushToken=syncNativePushToken;
+
+  window.addEventListener('market:native-push-registration',ev=>{
+    const token=String(ev?.detail?.token||window.marketNativeFcmToken||'').trim();
+    if(token)window.marketNativeFcmToken=token;
+    setTimeout(()=>syncNativePushToken({token,force:true}),0);
+  });
+
+  window.addEventListener('market:native-push-received',ev=>{
+    const notification=ev?.detail||{};
+    const data=notification?.data||{};
+    if(String(data?.test_push||'')==='1'){
+      window.dispatchEvent(new CustomEvent('market:native-push-test-received',{detail:{data,notification}}));
+      // The real-path test uses the same native new_order route; stop the
+      // repeating test alert shortly after the first sound so it is not annoying.
+      setTimeout(()=>{try{window.MarketNativeAlert?.stopAlert?.();}catch(_err){}},4500);
+    }
+  });
+
+  // Re-check the current token after Android returns from background. This is
+  // intentionally independent from Realtime channel lifecycle.
+  window.addEventListener('focus',()=>{
+    if(isNativeMarketApp())setTimeout(()=>ensureNativePushRegistration({force:false,requestPermission:false}),250);
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&isNativeMarketApp()){
+      setTimeout(()=>ensureNativePushRegistration({force:false,requestPermission:false}),250);
+    }
   });
 
   async function deactivateNativePushToken(){
@@ -2464,6 +2534,9 @@
         .eq('fcm_token',token)
         .eq('user_id',session.user.id);
       if(error) throw error;
+      nativePushLastSyncAt=0;
+      nativePushLastSyncedToken='';
+      nativePushLastSyncedUserId='';
       console.log('[NativePush] token deactivated before sign-out');
     }catch(err){
       console.warn('[NativePush] token deactivate failed',err);
@@ -2490,7 +2563,7 @@
     renderShops(); renderRecommended();
     if(session){
       await loadDashboard();
-      await syncNativePushToken();
+      await ensureNativePushRegistration({force:false,requestPermission:false});
     }
   }
 

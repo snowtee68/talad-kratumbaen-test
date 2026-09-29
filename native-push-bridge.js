@@ -42,17 +42,54 @@
     }
   });
 
-  (async () => {
-    try {
-      let perm = await push.checkPermissions();
-      if (perm?.receive === 'prompt' || perm?.receive === 'prompt-with-rationale') {
-        perm = await push.requestPermissions();
-      }
-      console.log('[NativePush] permission', perm?.receive);
-      if (perm?.receive === 'granted') await push.register();
-      else console.warn('[NativePush] notification permission not granted');
-    } catch (err) {
-      console.error('[NativePush] init failed', err);
+  let registerInFlight = null;
+  let lastRegisterAt = 0;
+
+  async function ensureRegistration({ force = false, requestPermission = false } = {}) {
+    if (registerInFlight) return registerInFlight;
+    const now = Date.now();
+    if (!force && window.marketNativeFcmToken && (now - lastRegisterAt) < 60 * 60 * 1000) {
+      return { ok: true, reason: 'recently_registered', token: window.marketNativeFcmToken };
     }
-  })();
+    registerInFlight = (async () => {
+      try {
+        let perm = await push.checkPermissions();
+        let receive = String(perm?.receive || '');
+        if ((receive === 'prompt' || receive === 'prompt-with-rationale') && requestPermission) {
+          perm = await push.requestPermissions();
+          receive = String(perm?.receive || '');
+        }
+        console.log('[NativePush] permission', receive);
+        if (receive === 'denied') return { ok: false, reason: 'permission_denied' };
+        if ((receive === 'prompt' || receive === 'prompt-with-rationale') && !requestPermission) {
+          return { ok: false, reason: 'permission_required' };
+        }
+        lastRegisterAt = Date.now();
+        await push.register();
+        return { ok: true, reason: 'register_requested', token: window.marketNativeFcmToken || '' };
+      } catch (err) {
+        console.error('[NativePush] register failed', err);
+        return { ok: false, reason: 'register_failed', error: err?.message || String(err) };
+      }
+    })().finally(() => { registerInFlight = null; });
+    return registerInFlight;
+  }
+
+  window.marketNativeEnsurePushRegistration = ensureRegistration;
+
+  // Preserve the existing first-run behavior: ask once if Android still needs
+  // notification permission, then register for FCM.
+  ensureRegistration({ force: true, requestPermission: true });
+
+  // Self-heal after the app returns from background without tying anything to
+  // Supabase Realtime. Permission prompts are never shown from these resume hooks.
+  // Re-registration is throttled to once per hour unless explicitly forced.
+  window.addEventListener('focus', () => {
+    setTimeout(() => ensureRegistration({ force: false, requestPermission: false }), 150);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      setTimeout(() => ensureRegistration({ force: false, requestPermission: false }), 150);
+    }
+  });
 })();
