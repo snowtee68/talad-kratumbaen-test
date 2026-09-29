@@ -8,6 +8,8 @@
     cfg.SUPABASE_ANON_KEY && !cfg.SUPABASE_ANON_KEY.includes('PASTE_')
   );
   const db = configured ? supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+  // V0.5.22.148: share one Supabase client across main/Rider/Order modules so Realtime channels reuse one WebSocket.
+  if(db&&!window.MARKET_SUPABASE_CLIENT)window.MARKET_SUPABASE_CLIENT=db;
   const DEMO = [{id:'demo',name:'Snowtee ตลาดกระทุ่มแบน',description:'เครื่องดื่ม ไอศกรีมซอฟต์เสิร์ฟ และเบเกอรี่ บรรยากาศริมคลอง',category:{name:'เครื่องดื่ม'},address:'ตลาดกระทุ่มแบน จังหวัดสมุทรสาคร',phone:'0642211876',facebook:'https://facebook.com/snowtee68',line:'snowtee68',latitude:13.6549,longitude:100.2639,status:'approved',featured:true,cover_url:null}];
 
   const ANALYTICS_EVENTS=new Set(['page_view','shop_view','navigate_click','phone_click','order_click','order_lineman_click','order_grab_click','order_shopee_click']);
