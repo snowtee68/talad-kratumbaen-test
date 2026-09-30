@@ -1907,7 +1907,7 @@
         <div><b>${esc(r.reviewer_name||'สมาชิกตลาด')}</b><span>${stars(r.rating)} ${Number(r.rating).toFixed(1)}</span></div>
         <p>${esc(r.comment||'')}</p>
         <small>${formatThaiDate(r.created_at)}</small>
-        ${r.is_mine?'<small class="muted" style="display:block;margin-top:6px">รีวิวของคุณ</small>':`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="text-button" data-review-report="${esc(r.id)}">🚩 รายงานรีวิว</button><button type="button" class="text-button" data-review-block="${esc(r.id)}" data-review-shop="${esc(id)}" data-review-target="${esc(targetId)}">🚫 บล็อกผู้เขียน</button></div>`}
+        ${r.is_mine?'<small class="muted" style="display:block;margin-top:8px">รีวิวของบัญชีคุณเอง</small>':`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="secondary" data-review-report="${esc(r.id)}" style="min-height:40px">🚩 รายงานรีวิว</button><button type="button" class="secondary" data-review-block="${esc(r.id)}" data-review-shop="${esc(id)}" data-review-target="${esc(targetId)}" style="min-height:40px">🚫 บล็อกผู้เขียน</button></div>`}
       </article>`).join(''):'<p class="empty-inline">ยังไม่มีรีวิว เป็นคนแรกที่แสดงความคิดเห็นได้เลย</p>';
   }
 
@@ -2352,7 +2352,7 @@
           <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${esc(s.name)}</h3>${status}</div>
           <div class="rating-line"><span>${stars(rating.average)}</span><b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b><small>${rating.count?`(${rating.count})`:'ยังไม่มีรีวิว'}</small></div>
           <p>${esc(s.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p>
-          <div class="community-actions"><button data-action="details">ดูรายละเอียด</button><button data-action="review">⭐ รีวิว</button>${favoriteButton(s.id)}</div>
+          <div class="community-actions"><button data-action="details">ดูรายละเอียด</button><button data-action="seller-reviews">💬 รีวิวลูกค้า</button>${favoriteButton(s.id)}</div>
           <div class="admin-actions"><button data-action="edit">แก้ไขร้าน</button><button class="manage-promo-btn" data-action="manage-promotions">⚙️ จัดการโปรโมชั่น</button><button data-action="promotion">+ เพิ่มโปรโมชั่น</button>${profile?.role==='admin'&&s.status!=='approved'?'<button data-action="approve">อนุมัติ</button>':''}${profile?.role==='admin'?`${s.status==='approved'&&s.delivery_access_known?`<button class="${s.delivery_access_enabled?'delivery-access-on':'delivery-access-off'}" data-action="admin-delivery-toggle" data-enabled="${s.delivery_access_enabled?'true':'false'}">${s.delivery_access_enabled?'🟢 Delivery เปิด':'⚪ Delivery ปิด'}</button>`:''}<button data-action="feature">${s.featured?'ยกเลิกแนะนำ':'แนะนำร้าน'}</button><button data-action="reject">ไม่อนุมัติ</button>`:''}</div>
         </div>
       </article>`;
@@ -2797,6 +2797,100 @@
 
 
 
+  let adminDeletionSummary={pending:0,processing:0,completed:0,cancelled:0,open:0,total:0};
+
+  function adminDeletionStatusLabel(status){
+    return ({pending:'รอดำเนินการ',processing:'กำลังดำเนินการ',completed:'เสร็จแล้ว',cancelled:'ยกเลิกแล้ว'})[status]||status||'-';
+  }
+
+  function updateAdminDeletionSummaryUI(summary={}){
+    adminDeletionSummary={...adminDeletionSummary,...(summary||{})};
+    const pending=Math.max(0,Number(adminDeletionSummary.pending||0));
+    const processing=Math.max(0,Number(adminDeletionSummary.processing||0));
+    const open=Math.max(0,Number(adminDeletionSummary.open??(pending+processing)));
+    const badge=$('adminDeletionPendingBadge');
+    if(badge){
+      badge.textContent=open?String(open):'';
+      badge.classList.toggle('hidden',!open);
+    }
+    const btn=$('adminDeletionNavBtn');
+    if(btn)btn.classList.toggle('has-alert',open>0);
+    const home=$('adminDeletionHomeSummary');
+    if(home)home.innerHTML=open
+      ? `<b>🗑️ มีคำขอลบบัญชี ${open} รายการ</b><small class="muted">รอดำเนินการ ${pending} • กำลังดำเนินการ ${processing}</small>`
+      : '<b>✅ ไม่มีคำขอลบบัญชีที่ค้างอยู่</b><small class="muted">คำขอใหม่จะแสดงที่เมนู “คำขอลบบัญชี”</small>';
+  }
+
+  async function loadAdminDeletionSummary(){
+    if(!db||profile?.role!=='admin')return null;
+    try{
+      const {data,error}=await db.rpc('market_admin_account_deletion_summary');
+      if(error)throw error;
+      updateAdminDeletionSummaryUI(data||{});
+      return data||{};
+    }catch(err){
+      console.warn('[AdminDeletion] summary unavailable',err?.message||err);
+      const home=$('adminDeletionHomeSummary');
+      if(home)home.innerHTML='<b>⚠️ ยังโหลดคำขอลบบัญชีไม่ได้</b><small class="muted">ตรวจว่าได้ Run SQL R8.7.1 แล้ว</small>';
+      return null;
+    }
+  }
+
+  async function loadAdminDeletionRequests(){
+    const box=$('adminDeletionRequestList');
+    if(!box||!db||profile?.role!=='admin')return;
+    box.innerHTML='<p class="muted">กำลังโหลดคำขอลบบัญชี...</p>';
+    try{
+      const {data,error}=await db.rpc('market_admin_account_deletion_requests');
+      if(error)throw error;
+      const rows=Array.isArray(data)?data:(data||[]);
+      box.innerHTML=rows.length?rows.map(r=>{
+        const name=r.profile_display_name||r.display_name||'ไม่ระบุชื่อ';
+        const contact=r.email||r.phone||'-';
+        const requested=r.requested_at?new Date(r.requested_at).toLocaleString('th-TH'):'-';
+        const updated=r.updated_at?new Date(r.updated_at).toLocaleString('th-TH'):'-';
+        const status=String(r.status||'');
+        const statusClass=status==='pending'?'pending':status==='processing'?'processing':status==='completed'?'completed':'cancelled';
+        let actions='';
+        if(status==='pending')actions=`<button type="button" class="primary" data-deletion-admin-action="start" data-deletion-request-id="${esc(r.id)}">▶ เริ่มดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
+        else if(status==='processing')actions=`<button type="button" class="secondary" data-deletion-admin-action="reopen" data-deletion-request-id="${esc(r.id)}">↩ กลับไปรอดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
+        return `<article class="admin-deletion-card ${statusClass}">
+          <div class="admin-deletion-head"><div><b>${esc(name)}</b><small class="muted">${esc(contact)}</small></div><span class="admin-deletion-status">${esc(adminDeletionStatusLabel(status))}</span></div>
+          <div class="admin-deletion-meta"><span><b>วันที่ขอ:</b> ${esc(requested)}</span><span><b>อัปเดต:</b> ${esc(updated)}</span><span><b>วิธีสมัคร:</b> ${esc(r.signup_method||'-')}</span></div>
+          <small class="muted" style="display:block;margin-top:7px;word-break:break-all">User ID: ${esc(r.user_id||'-')}</small>
+          ${r.admin_note?`<div class="admin-deletion-note"><b>หมายเหตุ Admin:</b> ${esc(r.admin_note)}</div>`:''}
+          ${actions?`<div class="admin-deletion-actions">${actions}</div>`:''}
+        </article>`;
+      }).join(''):'<p class="muted">ยังไม่มีคำขอลบบัญชี</p>';
+      await loadAdminDeletionSummary();
+    }catch(err){
+      box.innerHTML=`<p class="muted">โหลดคำขอไม่สำเร็จ: ${esc(err?.message||err)}</p>`;
+    }
+  }
+
+  async function handleAdminDeletionRequest(requestId,action){
+    if(!db||profile?.role!=='admin')return;
+    const labels={start:'เริ่มดำเนินการคำขอนี้',reopen:'ย้ายคำขอกลับไปรอดำเนินการ',cancel:'ยกเลิก/ปิดคำขอนี้'};
+    if(!confirm(`${labels[action]||'ดำเนินการ'} หรือไม่?`))return;
+    let note=null;
+    if(action==='cancel'){
+      const entered=prompt('หมายเหตุการยกเลิก/ปิดคำขอ (เว้นว่างได้)','');
+      if(entered===null)return;
+      note=String(entered||'').trim().slice(0,1000)||null;
+    }
+    try{
+      const {error}=await db.rpc('market_admin_update_account_deletion_request',{
+        p_request_id:requestId,
+        p_action:action,
+        p_admin_note:note
+      });
+      if(error)throw error;
+      await loadAdminDeletionRequests();
+    }catch(err){
+      alert('ดำเนินการคำขอลบบัญชีไม่สำเร็จ: '+friendlyAuthError(err?.message||String(err)));
+    }
+  }
+
   let adminActiveView='home';
   let adminPendingShops=[];
   let adminAllShops=[];
@@ -2826,9 +2920,10 @@
     adminActiveView=view;
     panel.querySelectorAll('[data-admin-view]').forEach(el=>el.classList.toggle('hidden',el.dataset.adminView!==view));
     panel.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===view));
-    const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',reports:'รายงานรีวิว',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
+    const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',reports:'รายงานรีวิว',deletions:'คำขอลบบัญชี',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
     const t=$('dashboardTitle');if(t&&profile?.role==='admin')t.textContent=titles[view]||'ศูนย์ควบคุม Admin';
     if(view==='reports')loadAdminReviewReports().catch(()=>{});
+    if(view==='deletions')loadAdminDeletionRequests().catch(()=>{});
     panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function ensureAdminControlCenter(){
@@ -2840,6 +2935,7 @@
       <button type="button" class="admin-control-btn active" data-admin-nav="home"><span class="ico">🏠</span><b>Dashboard</b><small>หน้าเมนูหลัก</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="shops"><span class="ico">🏪</span><b>ร้านค้า</b><small>อนุมัติและจัดการร้าน</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="reports"><span class="ico">🛡️</span><b>รายงานรีวิว</b><small>ตรวจ Report / ซ่อนรีวิว</small></button>
+      <button type="button" class="admin-control-btn" id="adminDeletionNavBtn" data-admin-nav="deletions"><span class="ico">🗑️</span><b>คำขอลบบัญชี <span id="adminDeletionPendingBadge" class="admin-count-badge hidden"></span></b><small>ตรวจและเริ่มดำเนินการ</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="mission"><span class="ico">🎯</span><b>Mission</b><small>เปิดปิดและตั้งรางวัล</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="coupons"><span class="ico">🎟️</span><b>คูปอง</b><small>ทางลัดจัดการคูปอง</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="delivery"><span class="ico">🛵</span><b>Delivery</b><small>ควบคุมระบบจัดส่ง</small></button>
@@ -2865,15 +2961,18 @@
 
     const reports=document.createElement('section');reports.dataset.adminView='reports';reports.className='admin-review-reports-view';reports.innerHTML=adminViewHeader('🛡️ รายงานรีวิว','ตรวจสอบรีวิวที่ผู้ใช้รายงาน และซ่อนจากสาธารณะเมื่อจำเป็น')+`<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button type="button" class="secondary" id="adminReviewReportRefreshBtn">↻ รีเฟรช</button></div><div id="adminReviewReportList"><p class="muted">กดรีเฟรชเพื่อโหลดรายงาน</p></div>`;panel.appendChild(reports);$('adminReviewReportRefreshBtn')?.addEventListener('click',loadAdminReviewReports);$('adminReviewReportList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-review-report-action]');if(b)handleAdminReviewReport(b.dataset.reportId,b.dataset.reviewReportAction);});
 
+    const deletions=document.createElement('section');deletions.dataset.adminView='deletions';deletions.className='admin-deletion-view';deletions.innerHTML=adminViewHeader('🗑️ คำขอลบบัญชี','ดูคำขอจากผู้ใช้และเปลี่ยนสถานะโดยไม่ลบข้อมูลอัตโนมัติ')+`<div class="admin-deletion-warning"><b>ขั้นตอนนี้ยังไม่ลบบัญชีจริง</b><p>ปุ่ม “เริ่มดำเนินการ” ใช้ล็อกคำขอไม่ให้ผู้ใช้ถอนเองระหว่างตรวจสอบเท่านั้น การลบข้อมูลและ Auth User จะทำด้วยกระบวนการ server-side แยกต่างหากภายหลัง</p></div><div style="display:flex;justify-content:flex-end;margin:12px 0"><button type="button" class="secondary" id="adminDeletionRefreshBtn">↻ รีเฟรช</button></div><div id="adminDeletionRequestList"><p class="muted">กดรีเฟรชเพื่อโหลดคำขอ</p></div>`;panel.appendChild(deletions);$('adminDeletionRefreshBtn')?.addEventListener('click',loadAdminDeletionRequests);$('adminDeletionRequestList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-deletion-admin-action]');if(b)handleAdminDeletionRequest(b.dataset.deletionRequestId,b.dataset.deletionAdminAction);});
+
     const coupon=document.createElement('section');coupon.dataset.adminView='coupons';coupon.className='admin-coupon-view';coupon.innerHTML=adminViewHeader('🎟️ คูปอง','ระบบคูปองใช้จุดจัดการเดิมเพื่อไม่เปลี่ยน logic ที่ใช้งานอยู่')+`<div class="admin-home-note"><b>จัดการคูปองจากจุดเดิมได้เหมือนเดิม</b><p class="muted">คูปอง Mission ตั้งจากหน้า Mission ส่วนคูปองร้านค้าสร้างจาก “จัดการโปรโมชั่น” ของร้านนั้น</p><div class="admin-coupon-links"><button type="button" class="secondary" data-admin-nav="mission">🎯 ไปตั้งคูปอง Mission</button><button type="button" class="secondary" data-admin-nav="shops">🏪 ไปเลือกร้านและจัดการโปรโมชั่น</button></div></div>`;panel.appendChild(coupon);
 
-    const home=document.createElement('section');home.dataset.adminView='home';home.className='admin-home-view';home.innerHTML=`<div class="admin-home-note"><b>เลือกเมนูด้านบนเพื่อจัดการระบบ</b><p class="muted" style="margin-bottom:0">แต่ละฟังก์ชันถูกแยกเป็นหน้าควบคุมภายใน Admin เดียวกัน ข้อมูลและฟังก์ชันเดิมยังใช้ชุดเดิมทั้งหมด</p></div>`;nav.insertAdjacentElement('afterend',home);
+    const home=document.createElement('section');home.dataset.adminView='home';home.className='admin-home-view';home.innerHTML=`<div id="adminDeletionHomeSummary" class="admin-home-note admin-deletion-home-summary"><b>กำลังตรวจคำขอลบบัญชี...</b></div><div class="admin-home-note" style="margin-top:12px"><b>เลือกเมนูด้านบนเพื่อจัดการระบบ</b><p class="muted" style="margin-bottom:0">แต่ละฟังก์ชันถูกแยกเป็นหน้าควบคุมภายใน Admin เดียวกัน ข้อมูลและฟังก์ชันเดิมยังใช้ชุดเดิมทั้งหมด</p></div>`;nav.insertAdjacentElement('afterend',home);
 
     panel.addEventListener('click',ev=>{const b=ev.target.closest('[data-admin-nav]');if(b){ev.preventDefault();showAdminView(b.dataset.adminNav||'home');}});
     $('adminMyShopBtn')?.addEventListener('click',()=>{window.location.href='./?seller_dashboard=1';});
     $('adminCenterModeToggle')?.addEventListener('click',()=>{window.location.href=isAdminCenterMode()?'./':'admin.html';});
     const requestedAdminView=(()=>{try{return new URLSearchParams(window.location.search).get('admin_view')||'home';}catch(_){return 'home';}})();
-    showAdminView(['home','shops','reports','mission','coupons','delivery','riders','analytics'].includes(requestedAdminView)?requestedAdminView:'home');
+    showAdminView(['home','shops','reports','deletions','mission','coupons','delivery','riders','analytics'].includes(requestedAdminView)?requestedAdminView:'home');
+    loadAdminDeletionSummary().catch(()=>{});
   }
 
   async function loadDashboard(){
@@ -3439,6 +3538,11 @@
       if(action==='delete-promotion')deletePromotion(ev.target.dataset.promotionId,shopId);
       if(action==='promo-details')openPromotionDetails(ev.target.dataset.promotionId);
       if(action==='details'){closeModal('promotionDetailModal');openShopDetails(shopId);}
+      if(action==='seller-reviews'){
+        closeModal('promotionDetailModal');
+        openShopDetails(shopId).then(()=>setTimeout(()=>$('reviewList')?.scrollIntoView({behavior:'smooth',block:'start'}),120));
+        return;
+      }
       if(action==='review'){
         $('reviewShopId').value=shopId;
         $('reviewShopName').textContent=[...shops,...shopIndex].find(s=>String(s.id)===String(shopId))?.name||'ร้านค้า';

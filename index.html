@@ -61,6 +61,23 @@
 #adminPanel .admin-home-note{padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fafafa}
 #adminPanel .admin-coupon-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
 #adminPanel .admin-coupon-links button{min-height:72px}
+#adminPanel .admin-count-badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#b91c1c;color:#fff;font-size:11px;line-height:1;vertical-align:middle}
+#adminPanel .admin-control-btn.has-alert{border-color:#fca5a5;background:#fff7f7}
+#adminPanel .admin-deletion-warning{padding:14px;border:1px solid #f5c2c7;border-radius:14px;background:#fff7f7;color:#7f1d1d}
+#adminPanel .admin-deletion-warning p{margin:6px 0 0;color:#7f1d1d;font-size:13px;line-height:1.55}
+#adminPanel .admin-deletion-card{border:1px solid #e5e7eb;border-radius:16px;background:#fff;padding:14px;margin:10px 0}
+#adminPanel .admin-deletion-card.pending{border-left:4px solid #f59e0b}
+#adminPanel .admin-deletion-card.processing{border-left:4px solid #2563eb}
+#adminPanel .admin-deletion-card.completed{border-left:4px solid #16a34a}
+#adminPanel .admin-deletion-card.cancelled{opacity:.72}
+#adminPanel .admin-deletion-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+#adminPanel .admin-deletion-head small{display:block;margin-top:2px}
+#adminPanel .admin-deletion-status{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:#f3f4f6}
+#adminPanel .admin-deletion-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px;font-size:12px;color:#4b5563}
+#adminPanel .admin-deletion-note{margin-top:10px;padding:9px 10px;border-radius:10px;background:#f8fafc;font-size:13px}
+#adminPanel .admin-deletion-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#adminPanel .admin-deletion-home-summary{display:flex;flex-direction:column;gap:4px}
+@media(max-width:620px){#adminPanel .admin-deletion-meta{grid-template-columns:1fr}#adminPanel .admin-deletion-actions button{flex:1 1 150px}}
 @media(max-width:760px){#adminPanel .admin-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminPanel .admin-control-btn{min-height:82px}#adminPanel .admin-coupon-links{grid-template-columns:1fr}}
 
 
@@ -507,7 +524,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=0.5.22.147-R8.7-ugc-moderation"></script>
+<script src="app.js?v=0.5.22.147-R8.7.2-seller-review-report"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
