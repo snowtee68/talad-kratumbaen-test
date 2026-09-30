@@ -2821,6 +2821,26 @@
       : '<b>✅ ไม่มีคำขอลบบัญชีที่ค้างอยู่</b><small class="muted">คำขอใหม่จะแสดงที่เมนู “คำขอลบบัญชี”</small>';
   }
 
+  async function loadAdminDeletionRowsFallback(){
+    const {data,error}=await db
+      .from('market_account_deletion_requests')
+      .select('id,user_id,status,requested_at,updated_at,processing_started_at,completed_at,display_name,signup_method,admin_note,handled_by')
+      .order('requested_at',{ascending:false});
+    if(error)throw error;
+    return Array.isArray(data)?data:[];
+  }
+
+  function adminDeletionSummaryFromRows(rows=[]){
+    const summary={pending:0,processing:0,completed:0,cancelled:0,open:0,total:0};
+    for(const r of rows){
+      const st=String(r?.status||'');
+      if(Object.prototype.hasOwnProperty.call(summary,st))summary[st]+=1;
+      summary.total+=1;
+      if(st==='pending'||st==='processing')summary.open+=1;
+    }
+    return summary;
+  }
+
   async function loadAdminDeletionSummary(){
     if(!db||profile?.role!=='admin')return null;
     try{
@@ -2828,44 +2848,84 @@
       if(error)throw error;
       updateAdminDeletionSummaryUI(data||{});
       return data||{};
-    }catch(err){
-      console.warn('[AdminDeletion] summary unavailable',err?.message||err);
-      const home=$('adminDeletionHomeSummary');
-      if(home)home.innerHTML='<b>⚠️ ยังโหลดคำขอลบบัญชีไม่ได้</b><small class="muted">ตรวจว่าได้ Run SQL R8.7.1 แล้ว</small>';
-      return null;
+    }catch(rpcErr){
+      console.warn('[AdminDeletion] summary RPC unavailable, using RLS fallback',rpcErr?.message||rpcErr);
+      try{
+        const rows=await loadAdminDeletionRowsFallback();
+        const summary=adminDeletionSummaryFromRows(rows);
+        updateAdminDeletionSummaryUI(summary);
+        return summary;
+      }catch(fallbackErr){
+        console.warn('[AdminDeletion] summary fallback unavailable',fallbackErr?.message||fallbackErr);
+        const home=$('adminDeletionHomeSummary');
+        if(home)home.innerHTML=`<b>⚠️ ยังโหลดคำขอลบบัญชีไม่ได้</b><small class="muted">${esc(fallbackErr?.message||rpcErr?.message||'ตรวจสิทธิ์ Admin / RLS')}</small>`;
+        return null;
+      }
     }
+  }
+
+  function renderAdminDeletionRows(box,rows=[]){
+    box.innerHTML=rows.length?rows.map(r=>{
+      const name=r.profile_display_name||r.display_name||'ไม่ระบุชื่อ';
+      const contact=r.email||r.phone||r.user_id||'-';
+      const requested=r.requested_at?new Date(r.requested_at).toLocaleString('th-TH'):'-';
+      const updated=r.updated_at?new Date(r.updated_at).toLocaleString('th-TH'):'-';
+      const status=String(r.status||'');
+      const statusClass=status==='pending'?'pending':status==='processing'?'processing':status==='completed'?'completed':'cancelled';
+      let actions='';
+      if(status==='pending')actions=`<button type="button" class="primary" data-deletion-admin-action="start" data-deletion-request-id="${esc(r.id)}">▶ เริ่มดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
+      else if(status==='processing')actions=`<button type="button" class="secondary" data-deletion-admin-action="reopen" data-deletion-request-id="${esc(r.id)}">↩ กลับไปรอดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
+      return `<article class="admin-deletion-card ${statusClass}">
+        <div class="admin-deletion-head"><div><b>${esc(name)}</b><small class="muted">${esc(contact)}</small></div><span class="admin-deletion-status">${esc(adminDeletionStatusLabel(status))}</span></div>
+        <div class="admin-deletion-meta"><span><b>วันที่ขอ:</b> ${esc(requested)}</span><span><b>อัปเดต:</b> ${esc(updated)}</span><span><b>วิธีสมัคร:</b> ${esc(r.signup_method||'-')}</span></div>
+        <small class="muted" style="display:block;margin-top:7px;word-break:break-all">User ID: ${esc(r.user_id||'-')}</small>
+        ${r.admin_note?`<div class="admin-deletion-note"><b>หมายเหตุ Admin:</b> ${esc(r.admin_note)}</div>`:''}
+        ${actions?`<div class="admin-deletion-actions">${actions}</div>`:''}
+      </article>`;
+    }).join(''):'<p class="muted">ยังไม่มีคำขอลบบัญชี</p>';
   }
 
   async function loadAdminDeletionRequests(){
     const box=$('adminDeletionRequestList');
     if(!box||!db||profile?.role!=='admin')return;
     box.innerHTML='<p class="muted">กำลังโหลดคำขอลบบัญชี...</p>';
+    let rows=[];
     try{
       const {data,error}=await db.rpc('market_admin_account_deletion_requests');
       if(error)throw error;
-      const rows=Array.isArray(data)?data:(data||[]);
-      box.innerHTML=rows.length?rows.map(r=>{
-        const name=r.profile_display_name||r.display_name||'ไม่ระบุชื่อ';
-        const contact=r.email||r.phone||'-';
-        const requested=r.requested_at?new Date(r.requested_at).toLocaleString('th-TH'):'-';
-        const updated=r.updated_at?new Date(r.updated_at).toLocaleString('th-TH'):'-';
-        const status=String(r.status||'');
-        const statusClass=status==='pending'?'pending':status==='processing'?'processing':status==='completed'?'completed':'cancelled';
-        let actions='';
-        if(status==='pending')actions=`<button type="button" class="primary" data-deletion-admin-action="start" data-deletion-request-id="${esc(r.id)}">▶ เริ่มดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
-        else if(status==='processing')actions=`<button type="button" class="secondary" data-deletion-admin-action="reopen" data-deletion-request-id="${esc(r.id)}">↩ กลับไปรอดำเนินการ</button><button type="button" class="secondary" data-deletion-admin-action="cancel" data-deletion-request-id="${esc(r.id)}">ยกเลิก/ปิดคำขอ</button>`;
-        return `<article class="admin-deletion-card ${statusClass}">
-          <div class="admin-deletion-head"><div><b>${esc(name)}</b><small class="muted">${esc(contact)}</small></div><span class="admin-deletion-status">${esc(adminDeletionStatusLabel(status))}</span></div>
-          <div class="admin-deletion-meta"><span><b>วันที่ขอ:</b> ${esc(requested)}</span><span><b>อัปเดต:</b> ${esc(updated)}</span><span><b>วิธีสมัคร:</b> ${esc(r.signup_method||'-')}</span></div>
-          <small class="muted" style="display:block;margin-top:7px;word-break:break-all">User ID: ${esc(r.user_id||'-')}</small>
-          ${r.admin_note?`<div class="admin-deletion-note"><b>หมายเหตุ Admin:</b> ${esc(r.admin_note)}</div>`:''}
-          ${actions?`<div class="admin-deletion-actions">${actions}</div>`:''}
-        </article>`;
-      }).join(''):'<p class="muted">ยังไม่มีคำขอลบบัญชี</p>';
-      await loadAdminDeletionSummary();
-    }catch(err){
-      box.innerHTML=`<p class="muted">โหลดคำขอไม่สำเร็จ: ${esc(err?.message||err)}</p>`;
+      rows=Array.isArray(data)?data:(data||[]);
+    }catch(rpcErr){
+      console.warn('[AdminDeletion] list RPC unavailable, using RLS fallback',rpcErr?.message||rpcErr);
+      try{
+        rows=await loadAdminDeletionRowsFallback();
+      }catch(fallbackErr){
+        box.innerHTML=`<p class="muted">โหลดคำขอไม่สำเร็จ: ${esc(fallbackErr?.message||rpcErr?.message||fallbackErr)}</p>`;
+        return;
+      }
     }
+    renderAdminDeletionRows(box,rows);
+    updateAdminDeletionSummaryUI(adminDeletionSummaryFromRows(rows));
+  }
+
+  async function updateAdminDeletionRequestFallback(requestId,action,note=null){
+    const now=new Date().toISOString();
+    let payload={handled_by:session?.user?.id||null,updated_at:now};
+    let query=db.from('market_account_deletion_requests').update(payload).eq('id',requestId);
+    if(action==='start'){
+      payload={...payload,status:'processing',processing_started_at:now};
+      query=db.from('market_account_deletion_requests').update(payload).eq('id',requestId).eq('status','pending');
+    }else if(action==='reopen'){
+      payload={...payload,status:'pending',processing_started_at:null};
+      query=db.from('market_account_deletion_requests').update(payload).eq('id',requestId).eq('status','processing');
+    }else if(action==='cancel'){
+      payload={...payload,status:'cancelled'};
+      if(note)payload.admin_note=note;
+      query=db.from('market_account_deletion_requests').update(payload).eq('id',requestId).in('status',['pending','processing']);
+    }else throw new Error('invalid action');
+    const {data,error}=await query.select('id,status').maybeSingle();
+    if(error)throw error;
+    if(!data?.id)throw new Error('ไม่พบคำขอที่อยู่ในสถานะที่ดำเนินการได้');
+    return data;
   }
 
   async function handleAdminDeletionRequest(requestId,action){
@@ -2885,10 +2945,16 @@
         p_admin_note:note
       });
       if(error)throw error;
-      await loadAdminDeletionRequests();
-    }catch(err){
-      alert('ดำเนินการคำขอลบบัญชีไม่สำเร็จ: '+friendlyAuthError(err?.message||String(err)));
+    }catch(rpcErr){
+      console.warn('[AdminDeletion] update RPC unavailable, using RLS fallback',rpcErr?.message||rpcErr);
+      try{
+        await updateAdminDeletionRequestFallback(requestId,action,note);
+      }catch(fallbackErr){
+        alert('ดำเนินการคำขอลบบัญชีไม่สำเร็จ: '+friendlyAuthError(fallbackErr?.message||rpcErr?.message||String(fallbackErr)));
+        return;
+      }
     }
+    await loadAdminDeletionRequests();
   }
 
   let adminActiveView='home';
