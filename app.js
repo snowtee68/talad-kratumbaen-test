@@ -2560,6 +2560,7 @@
     }
     updateAccountUI();
     fillProfileDisplayName();
+    await loadAccountDeletionRequest();
     await loadMyRiderApplication();
     if(myRiderApplication?.status==='approved'&&myRiderOnline)startRiderJobRealtime(); else stopRiderJobRealtime();
     await loadFavorites();
@@ -2568,6 +2569,84 @@
       await loadDashboard();
       await ensureNativePushRegistration({force:false,requestPermission:false});
     }
+  }
+
+  let accountDeletionRequest=null;
+
+  function accountDeletionStatusLabel(status){
+    return ({
+      pending:'⏳ ส่งคำขอลบบัญชีแล้ว — รอดำเนินการ',
+      processing:'🔄 กำลังดำเนินการลบบัญชี',
+      completed:'✅ ดำเนินการลบบัญชีแล้ว',
+      cancelled:'↩️ ยกเลิกคำขอลบแล้ว'
+    })[status]||'ยังไม่มีคำขอลบบัญชี';
+  }
+
+  function renderAccountDeletionStatus(){
+    const status=$('accountDeletionStatus');
+    const requestBtn=$('requestAccountDeletionBtn');
+    const cancelBtn=$('cancelAccountDeletionBtn');
+    const st=accountDeletionRequest?.status||'';
+    if(status)status.textContent=accountDeletionStatusLabel(st);
+    if(requestBtn){
+      requestBtn.disabled=st==='pending'||st==='processing';
+      requestBtn.textContent=st==='pending'||st==='processing'?'🗑️ มีคำขอลบอยู่แล้ว':'🗑️ ส่งคำขอลบบัญชี';
+    }
+    if(cancelBtn)cancelBtn.classList.toggle('hidden',st!=='pending');
+  }
+
+  async function loadAccountDeletionRequest(){
+    accountDeletionRequest=null;
+    if(!db||!session?.user?.id){renderAccountDeletionStatus();return null;}
+    try{
+      const {data,error}=await db.rpc('market_my_account_deletion_request');
+      if(error)throw error;
+      accountDeletionRequest=data&&typeof data==='object'&&!Array.isArray(data)&&data.status?data:null;
+    }catch(err){
+      // R8.4 SQL may not have been installed yet; keep the rest of the app usable.
+      console.warn('[AccountDeletion] status unavailable',err?.message||err);
+    }
+    renderAccountDeletionStatus();
+    return accountDeletionRequest;
+  }
+
+  async function submitAccountDeletionRequest(){
+    if(!db||!session?.user?.id)return alert('กรุณาเข้าสู่ระบบก่อน');
+    const ok=confirm('ยืนยันส่งคำขอลบบัญชีและข้อมูลที่เกี่ยวข้องใช่หรือไม่?\n\nบัญชีจะยังใช้งานได้ระหว่างรอดำเนินการ และข้อมูลธุรกรรมบางส่วนอาจต้องเก็บเท่าที่จำเป็นตามกฎหมายหรือเพื่อสิทธิของผู้ใช้อื่น');
+    if(!ok)return;
+    const btn=$('requestAccountDeletionBtn');
+    if(btn)btn.disabled=true;
+    try{
+      const {data,error}=await db.rpc('market_request_account_deletion');
+      if(error)throw error;
+      accountDeletionRequest=data&&typeof data==='object'?data:null;
+      renderAccountDeletionStatus();
+      alert('ส่งคำขอลบบัญชีเรียบร้อยแล้ว ผู้ดูแลจะดำเนินการหลังตรวจสอบคำขอ');
+    }catch(err){
+      console.error('[AccountDeletion] request failed',err);
+      alert('ส่งคำขอลบบัญชีไม่สำเร็จ: '+(err?.message||err));
+      await loadAccountDeletionRequest();
+    }finally{
+      if(btn)btn.disabled=false;
+      renderAccountDeletionStatus();
+    }
+  }
+
+  async function cancelAccountDeletionRequest(){
+    if(!db||!session?.user?.id)return;
+    if(!confirm('ยกเลิกคำขอลบบัญชีที่ยังรอดำเนินการใช่หรือไม่?'))return;
+    const btn=$('cancelAccountDeletionBtn');
+    if(btn)btn.disabled=true;
+    try{
+      const {data,error}=await db.rpc('market_cancel_account_deletion_request');
+      if(error)throw error;
+      accountDeletionRequest=data&&typeof data==='object'?data:null;
+      renderAccountDeletionStatus();
+      alert('ยกเลิกคำขอลบบัญชีแล้ว');
+    }catch(err){
+      alert('ยกเลิกคำขอไม่สำเร็จ: '+(err?.message||err));
+      await loadAccountDeletionRequest();
+    }finally{if(btn)btn.disabled=false;}
   }
 
   function updateAccountUI(){
@@ -3056,12 +3135,14 @@
       }catch(err){alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='บันทึกรหัสผ่านใหม่';}
     });
+    $('requestAccountDeletionBtn')?.addEventListener('click',submitAccountDeletionRequest);
+    $('cancelAccountDeletionBtn')?.addEventListener('click',cancelAccountDeletionRequest);
     $('signOutBtn').addEventListener('click',async()=>{
       if(!db)return;
       await deactivateNativePushToken();
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
-      session=null;profile=null;updateAccountUI();
+      session=null;profile=null;accountDeletionRequest=null;updateAccountUI();renderAccountDeletionStatus();
       await loadPublicShops({reset:true});
       window.scrollTo({top:0,behavior:'smooth'});
     });
