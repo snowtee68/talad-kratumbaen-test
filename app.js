@@ -1424,25 +1424,21 @@
 
   async function loadReviewStats(){
     if(!db){reviewStats={};return;}
-    const {data,error}=await db
-      .from('market_reviews')
-      .select('shop_id,rating')
-      .eq('status','approved');
-    if(error){
-      console.warn('Reviews are not ready:',error.message);
+    const rpc=await db.rpc('market_public_review_stats');
+    if(!rpc.error){
       reviewStats={};
+      (Array.isArray(rpc.data)?rpc.data:(rpc.data||[])).forEach(r=>{
+        reviewStats[String(r.shop_id)]={average:Number(r.average)||0,count:Number(r.count)||0};
+      });
       return;
     }
+    console.warn('market_public_review_stats fallback:',rpc.error.message);
+    const {data,error}=await db.from('market_reviews').select('shop_id,rating').eq('status','approved');
+    if(error){console.warn('Reviews are not ready:',error.message);reviewStats={};return;}
     const grouped={};
-    (data||[]).forEach(r=>{
-      grouped[r.shop_id] ||= {sum:0,count:0};
-      grouped[r.shop_id].sum+=Number(r.rating)||0;
-      grouped[r.shop_id].count+=1;
-    });
+    (data||[]).forEach(r=>{grouped[r.shop_id] ||= {sum:0,count:0};grouped[r.shop_id].sum+=Number(r.rating)||0;grouped[r.shop_id].count+=1;});
     reviewStats={};
-    Object.entries(grouped).forEach(([shopId,v])=>{
-      reviewStats[shopId]={average:v.count?v.sum/v.count:0,count:v.count};
-    });
+    Object.entries(grouped).forEach(([shopId,v])=>{reviewStats[shopId]={average:v.count?v.sum/v.count:0,count:v.count};});
   }
 
   function promotionCard(p){
@@ -1911,7 +1907,92 @@
         <div><b>${esc(r.reviewer_name||'สมาชิกตลาด')}</b><span>${stars(r.rating)} ${Number(r.rating).toFixed(1)}</span></div>
         <p>${esc(r.comment||'')}</p>
         <small>${formatThaiDate(r.created_at)}</small>
+        ${r.is_mine?'<small class="muted" style="display:block;margin-top:6px">รีวิวของคุณ</small>':`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="text-button" data-review-report="${esc(r.id)}">🚩 รายงานรีวิว</button><button type="button" class="text-button" data-review-block="${esc(r.id)}" data-review-shop="${esc(id)}" data-review-target="${esc(targetId)}">🚫 บล็อกผู้เขียน</button></div>`}
       </article>`).join(''):'<p class="empty-inline">ยังไม่มีรีวิว เป็นคนแรกที่แสดงความคิดเห็นได้เลย</p>';
+  }
+
+
+  async function reportReview(reviewId){
+    if(!db)return;
+    if(!session){
+      openModal('authModal');
+      return alert('กรุณาเข้าสู่ระบบก่อนรายงานรีวิว');
+    }
+    const reason=prompt('ระบุเหตุผลที่รายงานรีวิว เช่น สแปม / ข้อความไม่เหมาะสม / คุกคาม / ข้อมูลไม่จริง / อื่น ๆ');
+    if(!reason||!String(reason).trim())return;
+    try{
+      const {error}=await db.rpc('market_report_review',{
+        p_review_id:String(reviewId||''),
+        p_reason:String(reason).trim().slice(0,120),
+        p_details:null
+      });
+      if(error)throw error;
+      alert('ส่งรายงานเรียบร้อยแล้ว ทีมงานจะตรวจสอบโดยเร็ว');
+    }catch(err){
+      alert('ส่งรายงานไม่สำเร็จ: '+friendlyAuthError(err.message));
+    }
+  }
+
+  async function blockReviewAuthor(reviewId,shopId,targetId='reviewList'){
+    if(!db)return;
+    if(!session){
+      openModal('authModal');
+      return alert('กรุณาเข้าสู่ระบบก่อนบล็อกผู้ใช้');
+    }
+    if(!confirm('บล็อกผู้เขียนรีวิวนี้หรือไม่? หลังบล็อก รีวิวของผู้ใช้นี้จะไม่แสดงให้คุณเห็น'))return;
+    try{
+      const {error}=await db.rpc('market_block_review_author',{p_review_id:String(reviewId||'')});
+      if(error)throw error;
+      await loadShopReviews(shopId,targetId);
+      alert('บล็อกผู้ใช้นี้แล้ว');
+    }catch(err){
+      alert('บล็อกผู้ใช้ไม่สำเร็จ: '+friendlyAuthError(err.message));
+    }
+  }
+
+  async function loadAdminReviewReports(){
+    const box=$('adminReviewReportList');
+    if(!box||!db||profile?.role!=='admin')return;
+    box.innerHTML='<p class="muted">กำลังโหลดรายงานรีวิว...</p>';
+    const {data,error}=await db.rpc('market_admin_review_reports');
+    if(error){
+      box.innerHTML=`<p class="muted">โหลดรายงานไม่สำเร็จ: ${esc(error.message)}</p>`;
+      return;
+    }
+    const rows=Array.isArray(data)?data:(data||[]);
+    box.innerHTML=rows.length?rows.map(r=>{
+      const status={pending:'รอตรวจสอบ',reviewed:'ตรวจแล้ว',actioned:'ดำเนินการแล้ว',dismissed:'ยกคำร้อง'}[r.status]||r.status||'-';
+      const hidden=r.is_hidden?' • ซ่อนแล้ว':'';
+      return `<article style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:10px 0;background:#fff">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>🚩 ${esc(r.shop_name||'ร้านค้า')}</b><span class="muted">${esc(status)}${hidden}</span></div>
+        <div style="margin-top:8px"><b>${stars(r.rating||0)}</b> ${esc(r.comment||'(ไม่พบข้อความรีวิว)')}</div>
+        <small class="muted" style="display:block;margin-top:6px">ผู้เขียน: ${esc(r.reported_name||'สมาชิกตลาด')} • ผู้รายงาน: ${esc(r.reporter_name||'สมาชิกตลาด')} • เหตุผล: ${esc(r.reason||'-')}</small>
+        ${r.details?`<small class="muted" style="display:block">รายละเอียด: ${esc(r.details)}</small>`:''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${r.is_hidden?`<button type="button" class="secondary" data-review-report-action="restore" data-report-id="${esc(r.id)}">↩️ คืนรีวิว</button>`:`<button type="button" class="danger" data-review-report-action="hide" data-report-id="${esc(r.id)}">🚫 ซ่อนรีวิว</button>`}
+          <button type="button" class="secondary" data-review-report-action="dismiss" data-report-id="${esc(r.id)}">✓ ไม่พบปัญหา / ปิดรายงาน</button>
+        </div>
+      </article>`;
+    }).join(''):'<p class="muted">ยังไม่มีรายงานรีวิว</p>';
+  }
+
+  async function handleAdminReviewReport(reportId,action){
+    if(!db||profile?.role!=='admin')return;
+    const labels={hide:'ซ่อนรีวิวนี้',restore:'คืนรีวิวนี้',dismiss:'ปิดรายงานนี้โดยไม่ซ่อนรีวิว'};
+    if(!confirm(`${labels[action]||'ดำเนินการ'} หรือไม่?`))return;
+    try{
+      const {error}=await db.rpc('market_admin_handle_review_report',{
+        p_report_id:reportId,
+        p_action:action,
+        p_admin_note:null
+      });
+      if(error)throw error;
+      await loadAdminReviewReports();
+      await loadReviewStats().catch(()=>{});
+      renderShops();
+    }catch(err){
+      alert('ดำเนินการไม่สำเร็จ: '+friendlyAuthError(err.message));
+    }
   }
 
   function toLocalDateTimeInput(value){
@@ -2745,8 +2826,9 @@
     adminActiveView=view;
     panel.querySelectorAll('[data-admin-view]').forEach(el=>el.classList.toggle('hidden',el.dataset.adminView!==view));
     panel.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===view));
-    const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
+    const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',reports:'รายงานรีวิว',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
     const t=$('dashboardTitle');if(t&&profile?.role==='admin')t.textContent=titles[view]||'ศูนย์ควบคุม Admin';
+    if(view==='reports')loadAdminReviewReports().catch(()=>{});
     panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function ensureAdminControlCenter(){
@@ -2757,6 +2839,7 @@
     nav.innerHTML=`<div class="admin-control-title"><div><span class="eyebrow red">Admin</span><h3>ศูนย์ควบคุมระบบ</h3><small class="muted">เลือกเมนูที่ต้องการจัดการ ไม่ต้องเลื่อนหาทุกระบบในหน้าเดียว</small></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="secondary" id="adminMyShopBtn">🏪 ร้านของฉัน</button><button type="button" class="secondary" id="adminCenterModeToggle">${isAdminCenterMode()?'← กลับหน้าร้าน':'⛶ เปิด Admin เต็มหน้าจอ'}</button></div></div><div class="admin-control-grid">
       <button type="button" class="admin-control-btn active" data-admin-nav="home"><span class="ico">🏠</span><b>Dashboard</b><small>หน้าเมนูหลัก</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="shops"><span class="ico">🏪</span><b>ร้านค้า</b><small>อนุมัติและจัดการร้าน</small></button>
+      <button type="button" class="admin-control-btn" data-admin-nav="reports"><span class="ico">🛡️</span><b>รายงานรีวิว</b><small>ตรวจ Report / ซ่อนรีวิว</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="mission"><span class="ico">🎯</span><b>Mission</b><small>เปิดปิดและตั้งรางวัล</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="coupons"><span class="ico">🎟️</span><b>คูปอง</b><small>ทางลัดจัดการคูปอง</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="delivery"><span class="ico">🛵</span><b>Delivery</b><small>ควบคุมระบบจัดส่ง</small></button>
@@ -2780,6 +2863,8 @@
       if(start>=0&&end>=start){const wrap=document.createElement('section');wrap.dataset.adminView='shops';wrap.className='admin-shops-view';wrap.innerHTML=adminViewHeader('🏪 ร้านค้า','อนุมัติ แก้ไข และกำหนดสิทธิ์ Delivery รายร้าน')+`<div class="admin-shop-search"><label for="adminShopSearchInput">ค้นหาร้านค้า</label><div class="admin-shop-search-row"><input id="adminShopSearchInput" type="search" autocomplete="off" placeholder="ชื่อร้าน หมวดหมู่ เบอร์โทร ที่อยู่ หรือสถานะ"><button id="adminShopSearchClear" type="button" class="secondary hidden">ล้างคำค้น</button></div><small id="adminShopSearchStatus" class="muted" aria-live="polite"></small></div>`;panel.insertBefore(wrap,children[start]);for(let i=start;i<=end;i++)wrap.appendChild(children[i]);$('adminShopSearchInput')?.addEventListener('input',renderAdminShopLists);$('adminShopSearchClear')?.addEventListener('click',()=>{const input=$('adminShopSearchInput');if(input){input.value='';input.focus();}renderAdminShopLists();});}
     }
 
+    const reports=document.createElement('section');reports.dataset.adminView='reports';reports.className='admin-review-reports-view';reports.innerHTML=adminViewHeader('🛡️ รายงานรีวิว','ตรวจสอบรีวิวที่ผู้ใช้รายงาน และซ่อนจากสาธารณะเมื่อจำเป็น')+`<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button type="button" class="secondary" id="adminReviewReportRefreshBtn">↻ รีเฟรช</button></div><div id="adminReviewReportList"><p class="muted">กดรีเฟรชเพื่อโหลดรายงาน</p></div>`;panel.appendChild(reports);$('adminReviewReportRefreshBtn')?.addEventListener('click',loadAdminReviewReports);$('adminReviewReportList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-review-report-action]');if(b)handleAdminReviewReport(b.dataset.reportId,b.dataset.reviewReportAction);});
+
     const coupon=document.createElement('section');coupon.dataset.adminView='coupons';coupon.className='admin-coupon-view';coupon.innerHTML=adminViewHeader('🎟️ คูปอง','ระบบคูปองใช้จุดจัดการเดิมเพื่อไม่เปลี่ยน logic ที่ใช้งานอยู่')+`<div class="admin-home-note"><b>จัดการคูปองจากจุดเดิมได้เหมือนเดิม</b><p class="muted">คูปอง Mission ตั้งจากหน้า Mission ส่วนคูปองร้านค้าสร้างจาก “จัดการโปรโมชั่น” ของร้านนั้น</p><div class="admin-coupon-links"><button type="button" class="secondary" data-admin-nav="mission">🎯 ไปตั้งคูปอง Mission</button><button type="button" class="secondary" data-admin-nav="shops">🏪 ไปเลือกร้านและจัดการโปรโมชั่น</button></div></div>`;panel.appendChild(coupon);
 
     const home=document.createElement('section');home.dataset.adminView='home';home.className='admin-home-view';home.innerHTML=`<div class="admin-home-note"><b>เลือกเมนูด้านบนเพื่อจัดการระบบ</b><p class="muted" style="margin-bottom:0">แต่ละฟังก์ชันถูกแยกเป็นหน้าควบคุมภายใน Admin เดียวกัน ข้อมูลและฟังก์ชันเดิมยังใช้ชุดเดิมทั้งหมด</p></div>`;nav.insertAdjacentElement('afterend',home);
@@ -2788,7 +2873,7 @@
     $('adminMyShopBtn')?.addEventListener('click',()=>{window.location.href='./?seller_dashboard=1';});
     $('adminCenterModeToggle')?.addEventListener('click',()=>{window.location.href=isAdminCenterMode()?'./':'admin.html';});
     const requestedAdminView=(()=>{try{return new URLSearchParams(window.location.search).get('admin_view')||'home';}catch(_){return 'home';}})();
-    showAdminView(['home','shops','mission','coupons','delivery','riders','analytics'].includes(requestedAdminView)?requestedAdminView:'home');
+    showAdminView(['home','shops','reports','mission','coupons','delivery','riders','analytics'].includes(requestedAdminView)?requestedAdminView:'home');
   }
 
   async function loadDashboard(){
@@ -3245,6 +3330,12 @@
     });
     $('reviewForm').addEventListener('submit',submitReview);
     $('openReviewBtn').addEventListener('click',()=>{closeModal('shopDetailModal');openModal('reviewModal');});
+    document.addEventListener('click',ev=>{
+      const reportBtn=ev.target.closest?.('[data-review-report]');
+      if(reportBtn){ev.preventDefault();reportReview(reportBtn.dataset.reviewReport);return;}
+      const blockBtn=ev.target.closest?.('[data-review-block]');
+      if(blockBtn){ev.preventDefault();blockReviewAuthor(blockBtn.dataset.reviewBlock,blockBtn.dataset.reviewShop,blockBtn.dataset.reviewTarget||'reviewList');}
+    });
     $('showAllPromotionsBtn').addEventListener('click',openAllPromotions);
     $('shopPagination')?.addEventListener('click',ev=>{
       const btn=ev.target.closest('[data-shop-page]');
