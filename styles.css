@@ -927,3 +927,21 @@ fieldset{border:1px solid var(--line);border-radius:14px;padding:14px}legend{fon
 .admin-shop-search-row button{flex:0 0 auto;white-space:nowrap}
 .admin-shop-search small{display:block;margin-top:8px}
 @media(max-width:600px){.admin-shop-search-row{flex-direction:column}.admin-shop-search-row button{width:100%}}
+
+/* R8.7.3 — iOS promotion artwork must fill the visible card frame.
+   Keep each existing frame/aspect-ratio; crop excess image instead of letterboxing. */
+.promo-grid .promo-image{
+  position:relative;
+  overflow:hidden;
+}
+.promo-grid .promo-image > img{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%!important;
+  height:100%!important;
+  max-width:none;
+  max-height:none;
+  object-fit:cover!important;
+  object-position:center center!important;
+}
