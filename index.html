@@ -269,6 +269,14 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
         <button type="submit" class="primary">💾 บันทึกชื่อ</button>
       </form>
     </section>
+    <section class="admin-mission-reward" aria-label="ความเป็นส่วนตัวและการจัดการบัญชี">
+      <div class="section-head"><div><span class="eyebrow red">ความเป็นส่วนตัว</span><h3>🔐 ข้อมูลและบัญชีของฉัน</h3></div></div>
+      <p class="muted">อ่านวิธีที่ระบบใช้ข้อมูลส่วนบุคคล หรือขอลบบัญชีและข้อมูลที่เกี่ยวข้องได้จากที่นี่</p>
+      <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="privacy.html" class="secondary" style="text-decoration:none">📄 นโยบายความเป็นส่วนตัว</a>
+        <a href="delete-account.html" class="danger" style="text-decoration:none">🗑️ ขอลบบัญชีและข้อมูล</a>
+      </div>
+    </section>
     <div id="adminPanel" class="hidden"><section class="admin-mission-reward"><div class="section-head"><div><span class="eyebrow red">Delivery</span><h3>🛵 ควบคุมระบบ Delivery</h3></div><span id="deliverySystemAdminStatus" class="muted"></span></div><p class="muted">สวิตช์หลักสำหรับออเดอร์ใหม่ของทุกร้าน เมื่อปิด ลูกค้าจะเลือกได้เฉพาะรับเองที่ร้าน โดยค่าการเปิด Delivery รายร้านจะยังถูกเก็บไว้เหมือนเดิม</p><form id="deliverySystemForm" class="mission-reward-form"><label class="check mission-master-toggle"><input name="delivery_enabled" type="checkbox" checked> <b>🛵 เปิดระบบ Delivery ทั้งระบบ</b><small>ปิด = ออเดอร์ใหม่ทั้งหมดบังคับเป็น “รับเองที่ร้าน” และคูปอง Delivery-only จะไม่แสดง</small></label><button type="submit" class="primary">💾 บันทึกการตั้งค่า Delivery</button></form></section><section class="admin-mission-reward"><div class="section-head"><div><span class="eyebrow red">Rider</span><h3>🛵 จัดการ Rider โครงการ</h3></div><div style="display:flex;gap:8px;align-items:center"><span id="riderRegistryStatus" class="muted"></span><button id="adminRiderRefreshBtn" type="button" class="secondary">↻ รีเฟรช</button></div></div><p class="muted">ระบบจะบันทึกชื่อและเบอร์ของ Rider ที่กดรับงาน Delivery ให้อัตโนมัติ และ Admin สามารถเพิ่ม Rider ไว้ล่วงหน้าหรือปิดใช้งานได้</p><h4>คำขอสมัครเป็น Rider จากผู้ใช้</h4>
 <div id="adminRiderApplicantList" style="margin-bottom:18px"><p class="muted">กำลังโหลดคำขอ...</p></div>
 <h4>เพิ่ม Rider โดย Admin</h4>
@@ -277,7 +285,7 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
   </section>
 </main>
 
-<footer><div class="container support-footer"><div>ตลาดกระทุ่มแบน — ร้านใหม่จะแสดงหลังแอดมินอนุมัติ <span class="version-badge">V0.5.22.133</span></div><a class="support-openchat-link" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer">💬 สอบถาม / แจ้งปัญหาการใช้งาน</a></div></footer>
+<footer><div class="container support-footer"><div>ตลาดกระทุ่มแบน — ร้านใหม่จะแสดงหลังแอดมินอนุมัติ <span class="version-badge">V0.5.22.147-R8.3</span></div><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><a class="support-openchat-link" href="privacy.html">🔐 นโยบายความเป็นส่วนตัว</a><a class="support-openchat-link" href="delete-account.html">🗑️ ขอลบบัญชี</a><a class="support-openchat-link" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer">💬 สอบถาม / แจ้งปัญหาการใช้งาน</a></div></div></footer>
 
 <nav class="floating-navigation" aria-label="ทางลัดหน้าเว็บ">
   <button id="floatingBackBtn" type="button" class="floating-nav-button" aria-label="ย้อนกลับ">← <span>กลับ</span></button>
