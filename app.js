@@ -2559,6 +2559,7 @@
       }
     }
     updateAccountUI();
+    applyAdminCenterMode();
     fillProfileDisplayName();
     await loadAccountDeletionRequest();
     await loadMyRiderApplication();
@@ -2567,6 +2568,7 @@
     renderShops(); renderRecommended();
     if(session){
       await loadDashboard();
+      if(isSellerDashboardMode())setTimeout(()=>$('dashboard')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
       await ensureNativePushRegistration({force:false,requestPermission:false});
     }
   }
@@ -2649,6 +2651,46 @@
     }finally{if(btn)btn.disabled=false;}
   }
 
+
+  // R8.5: Admin Center full-screen mode is opt-in only.
+  // Normal storefront behavior remains untouched unless ?admin_center=1 is used.
+  function isAdminCenterMode(){
+    try{return new URLSearchParams(window.location.search).get('admin_center')==='1';}
+    catch(_err){return false;}
+  }
+  function isSellerDashboardMode(){
+    try{return new URLSearchParams(window.location.search).get('seller_dashboard')==='1';}
+    catch(_err){return false;}
+  }
+  function applyAdminCenterMode(){
+    const mode=isAdminCenterMode();
+    document.body.classList.toggle('admin-center-mode',mode);
+    if(!mode)document.body.classList.remove('admin-center-authorized');
+    const gate=$('adminCenterGate');
+    if(!mode){if(gate)gate.classList.add('hidden');return;}
+    const signedIn=Boolean(session?.user?.id);
+    const isAdmin=signedIn&&profile?.role==='admin';
+    document.body.classList.toggle('admin-center-authorized',Boolean(mode&&isAdmin));
+    if(gate)gate.classList.toggle('hidden',isAdmin);
+    const title=$('adminCenterGateTitle'),text=$('adminCenterGateText');
+    const login=$('adminCenterLoginBtn'),signOut=$('adminCenterSignOutBtn');
+    if(!signedIn){
+      if(title)title.textContent='ศูนย์ควบคุม Admin';
+      if(text)text.textContent='กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแล';
+      login?.classList.remove('hidden'); signOut?.classList.add('hidden');
+      $('dashboard')?.classList.add('hidden');
+      return;
+    }
+    if(!isAdmin){
+      if(title)title.textContent='บัญชีนี้ไม่มีสิทธิ์ Admin';
+      if(text)text.textContent='กรุณาออกจากระบบ แล้วเข้าสู่ระบบด้วยบัญชีผู้ดูแล';
+      login?.classList.add('hidden'); signOut?.classList.remove('hidden');
+      $('dashboard')?.classList.add('hidden');
+      return;
+    }
+    $('dashboard')?.classList.remove('hidden');
+  }
+
   function updateAccountUI(){
     document.body.classList.toggle('guest-session',!session);
     const accountBtn=$('accountBtn');
@@ -2712,7 +2754,7 @@
     if($('adminControlCenter'))return;
 
     const nav=document.createElement('div');nav.id='adminControlCenter';nav.className='admin-control-center';
-    nav.innerHTML=`<div class="admin-control-title"><div><span class="eyebrow red">Admin</span><h3>ศูนย์ควบคุมระบบ</h3><small class="muted">เลือกเมนูที่ต้องการจัดการ ไม่ต้องเลื่อนหาทุกระบบในหน้าเดียว</small></div></div><div class="admin-control-grid">
+    nav.innerHTML=`<div class="admin-control-title"><div><span class="eyebrow red">Admin</span><h3>ศูนย์ควบคุมระบบ</h3><small class="muted">เลือกเมนูที่ต้องการจัดการ ไม่ต้องเลื่อนหาทุกระบบในหน้าเดียว</small></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="secondary" id="adminMyShopBtn">🏪 ร้านของฉัน</button><button type="button" class="secondary" id="adminCenterModeToggle">${isAdminCenterMode()?'← กลับหน้าร้าน':'⛶ เปิด Admin เต็มหน้าจอ'}</button></div></div><div class="admin-control-grid">
       <button type="button" class="admin-control-btn active" data-admin-nav="home"><span class="ico">🏠</span><b>Dashboard</b><small>หน้าเมนูหลัก</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="shops"><span class="ico">🏪</span><b>ร้านค้า</b><small>อนุมัติและจัดการร้าน</small></button>
       <button type="button" class="admin-control-btn" data-admin-nav="mission"><span class="ico">🎯</span><b>Mission</b><small>เปิดปิดและตั้งรางวัล</small></button>
@@ -2743,7 +2785,10 @@
     const home=document.createElement('section');home.dataset.adminView='home';home.className='admin-home-view';home.innerHTML=`<div class="admin-home-note"><b>เลือกเมนูด้านบนเพื่อจัดการระบบ</b><p class="muted" style="margin-bottom:0">แต่ละฟังก์ชันถูกแยกเป็นหน้าควบคุมภายใน Admin เดียวกัน ข้อมูลและฟังก์ชันเดิมยังใช้ชุดเดิมทั้งหมด</p></div>`;nav.insertAdjacentElement('afterend',home);
 
     panel.addEventListener('click',ev=>{const b=ev.target.closest('[data-admin-nav]');if(b){ev.preventDefault();showAdminView(b.dataset.adminNav||'home');}});
-    showAdminView('home');
+    $('adminMyShopBtn')?.addEventListener('click',()=>{window.location.href='./?seller_dashboard=1';});
+    $('adminCenterModeToggle')?.addEventListener('click',()=>{window.location.href=isAdminCenterMode()?'./':'admin.html';});
+    const requestedAdminView=(()=>{try{return new URLSearchParams(window.location.search).get('admin_view')||'home';}catch(_){return 'home';}})();
+    showAdminView(['home','shops','mission','coupons','delivery','riders','analytics'].includes(requestedAdminView)?requestedAdminView:'home');
   }
 
   async function loadDashboard(){
@@ -2751,8 +2796,11 @@
     const {data:mine,error}=await db.from('market_shops').select('*, category:market_categories(id,name,icon)').eq('owner_id',session.user.id).order('created_at',{ascending:false});
     if(error) showNotice(error.message,true);
     $('myShopGrid').innerHTML=(mine||[]).length?(mine||[]).map(s=>shopCard(s,true)).join(''):'<p>ยังไม่มีร้านในบัญชีนี้</p>';
-    $('adminPanel').classList.toggle('hidden',profile?.role!=='admin');
-    if(profile?.role==='admin'){
+    const sellerDashboardMode=isSellerDashboardMode();
+    $('adminPanel').classList.toggle('hidden',profile?.role!=='admin'||sellerDashboardMode);
+    const dashboardTitle=$('dashboardTitle');
+    if(dashboardTitle&&sellerDashboardMode)dashboardTitle.textContent='ร้านของฉัน';
+    if(profile?.role==='admin'&&!sellerDashboardMode){
       ensureAdminControlCenter();
       loadAnalyticsDashboard(analyticsPeriod);
       loadRiderAdminPanel();
@@ -3010,6 +3058,8 @@
     document.addEventListener('click',ev=>{const closer=ev.target.closest?.('[data-close]');if(closer?.dataset?.close)closeModal(closer.dataset.close);});
     $('floatingHomeBtn')?.addEventListener('click',goHome);
     $('floatingBackBtn')?.addEventListener('click',goBack);
+    $('adminCenterLoginBtn')?.addEventListener('click',()=>openModal('authModal'));
+    $('adminCenterSignOutBtn')?.addEventListener('click',()=>$('signOutBtn')?.click());
     document.querySelectorAll('[data-analytics-period]').forEach(btn=>btn.addEventListener('click',()=>loadAnalyticsDashboard(btn.dataset.analyticsPeriod||'7d')));
     $('accountBtn').addEventListener('click',()=>{
       if(!session)return openModal('authModal');
@@ -3142,7 +3192,7 @@
       await deactivateNativePushToken();
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
-      session=null;profile=null;accountDeletionRequest=null;updateAccountUI();renderAccountDeletionStatus();
+      session=null;profile=null;accountDeletionRequest=null;updateAccountUI();applyAdminCenterMode();renderAccountDeletionStatus();
       await loadPublicShops({reset:true});
       window.scrollTo({top:0,behavior:'smooth'});
     });

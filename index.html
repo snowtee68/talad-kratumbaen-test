@@ -63,6 +63,29 @@
 #adminPanel .admin-coupon-links button{min-height:72px}
 @media(max-width:760px){#adminPanel .admin-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminPanel .admin-control-btn{min-height:82px}#adminPanel .admin-coupon-links{grid-template-columns:1fr}}
 
+
+/* R8.5: optional full-screen Admin Center. Normal storefront is unchanged unless ?admin_center=1 is present. */
+#adminCenterGate{max-width:720px;margin:44px auto;padding:0 16px}
+#adminCenterGate .admin-center-gate-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:24px;box-shadow:0 14px 36px rgba(15,23,42,.08)}
+#adminCenterGate .admin-center-gate-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+body.admin-center-mode{background:#f4f6f8}
+body.admin-center-mode .site-header,
+body.admin-center-mode main > :not(#dashboard):not(#adminCenterGate),
+body.admin-center-mode footer,
+body.admin-center-mode .floating-navigation{display:none!important}
+body.admin-center-mode main{min-height:100vh;padding:0!important}
+body.admin-center-mode #dashboard{max-width:1120px;margin:0 auto;padding:12px 12px 42px}
+body.admin-center-mode.admin-center-authorized #dashboard{display:block!important}
+body.admin-center-mode #dashboard > :not(.section-head):not(#adminPanel){display:none!important}
+body.admin-center-mode #dashboard > .section-head{position:sticky;top:0;z-index:60;margin:0 -2px 12px;padding:12px 4px;background:rgba(244,246,248,.96);backdrop-filter:blur(10px)}
+body.admin-center-mode #dashboard > .section-head .eyebrow{display:none}
+body.admin-center-mode #dashboard > .section-head h2{font-size:20px;margin:0}
+body.admin-center-mode #adminPanel{margin-top:4px}
+body.admin-center-mode #adminPanel .admin-control-title{align-items:center}
+body.admin-center-mode #adminPanel .admin-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.admin-center-mode #adminPanel .admin-control-btn{min-height:92px}
+@media(min-width:860px){body.admin-center-mode #adminPanel .admin-control-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
 /* Guest header layout — V0.5.22.96: fixed 3-column guest actions */
 body.guest-session .site-header .header-dashboard-nav{
   display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;padding-top:18px;padding-bottom:18px
@@ -136,6 +159,19 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 </header>
 
 <main id="top">
+  <section id="adminCenterGate" class="hidden" aria-live="polite">
+    <div class="admin-center-gate-card">
+      <span class="eyebrow red">Admin Center</span>
+      <h2 id="adminCenterGateTitle">ศูนย์ควบคุม Admin</h2>
+      <p id="adminCenterGateText" class="muted">กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแล</p>
+      <div class="admin-center-gate-actions">
+        <button id="adminCenterLoginBtn" type="button" class="primary">เข้าสู่ระบบผู้ดูแล</button>
+        <button id="adminCenterSignOutBtn" type="button" class="secondary hidden">ออกจากบัญชีนี้</button>
+        <a href="./" class="secondary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">← กลับหน้าร้าน</a>
+      </div>
+    </div>
+  </section>
+
   <section class="market-photo-banner" aria-label="บรรยากาศตลาดกระทุ่มแบน">
   <img src="assets/krathumbaen-market-banner.jpg?v=0.5.22.133-r1" alt="บรรยากาศริมคลองตลาดกระทุ่มแบน" loading="eager" decoding="async">
   <div class="market-photo-overlay">
@@ -288,7 +324,7 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
   </section>
 </main>
 
-<footer><div class="container support-footer"><div>ตลาดกระทุ่มแบน — ร้านใหม่จะแสดงหลังแอดมินอนุมัติ <span class="version-badge">V0.5.22.147-R8.4</span></div><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><a class="support-openchat-link" href="privacy.html">🔐 นโยบายความเป็นส่วนตัว</a><a class="support-openchat-link" href="delete-account.html">🗑️ ขอลบบัญชี</a><a class="support-openchat-link" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer">💬 สอบถาม / แจ้งปัญหาการใช้งาน</a></div></div></footer>
+<footer><div class="container support-footer"><div>ตลาดกระทุ่มแบน — ร้านใหม่จะแสดงหลังแอดมินอนุมัติ <span class="version-badge">V0.5.22.147-R8.5.1</span></div><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><a class="support-openchat-link" href="privacy.html">🔐 นโยบายความเป็นส่วนตัว</a><a class="support-openchat-link" href="delete-account.html">🗑️ ขอลบบัญชี</a><a class="support-openchat-link" href="https://line.me/ti/g2/26r6PGveA0bN-PKo8YNyw7dd2lF_ejymNdCNKw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" rel="noopener noreferrer">💬 สอบถาม / แจ้งปัญหาการใช้งาน</a></div></div></footer>
 
 <nav class="floating-navigation" aria-label="ทางลัดหน้าเว็บ">
   <button id="floatingBackBtn" type="button" class="floating-nav-button" aria-label="ย้อนกลับ">← <span>กลับ</span></button>
@@ -470,7 +506,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=0.5.22.147-R8.4-account-deletion-request"></script>
+<script src="app.js?v=0.5.22.147-R8.5.1-admin-my-shop"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
