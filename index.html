@@ -42,7 +42,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-  <link rel="stylesheet" href="styles.css?v=0.5.22.147-R8.7.3-ios-promo-cover">
+  <link rel="stylesheet" href="styles.css?v=0.5.22.147-R8.8.1-mission-popup-visual">
 <link rel="stylesheet" href="order.css?v=0.5.20.42-restore">
 <style>
 #adminPanel .admin-control-center{margin-bottom:18px}
@@ -490,13 +490,30 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 
 <div id="missionWelcomeModal" class="modal hidden" aria-hidden="true">
   <div class="backdrop" data-close="missionWelcomeModal"></div>
-  <div class="modal-card small mission-welcome-card">
-    <button class="close" data-close="missionWelcomeModal" aria-label="ปิด">×</button>
-    <div class="mission-welcome-hero"><div class="mission-confetti" aria-hidden="true"><i>✨</i><i>🎉</i><i>⭐</i></div><div class="mission-welcome-icon">🎯</div><span class="mission-welcome-kicker">MISSION กระทุ่มแบน</span><h2>ภารกิจวันนี้มาแล้ว!</h2><p>เล่นง่าย ๆ ระหว่างใช้งานตลาด<br><b>ทำครบ มีสิทธิ์รับของรางวัล 🎁</b></p></div>
-    <div id="missionWelcomeReward" class="mission-welcome-reward hidden"></div>
-    <div class="mission-welcome-quests"><span>🔍 สำรวจร้าน</span><span>❤️ เก็บร้านโปรด</span><span>⭐ รีวิวร้าน</span><span>🛍️ อุดหนุนชุมชน</span></div>
-    <div class="mission-welcome-actions"><button id="missionWelcomeStartBtn" class="primary mission-start-cta" type="button">🎯 เริ่มทำ Mission</button><button class="ghost mission-later-btn" type="button" data-close="missionWelcomeModal">ไว้ทีหลัง</button></div>
-    <small class="mission-welcome-note">ระบบนับภารกิจให้อัตโนมัติ ไม่ต้องกดยืนยันเอง</small>
+  <div class="modal-card small mission-welcome-card mission-welcome-chibi">
+    <button class="close mission-welcome-close" data-close="missionWelcomeModal" aria-label="ปิด">×</button>
+    <div class="mission-welcome-scene" aria-hidden="true">
+      <div class="mission-sky-cloud cloud-one"></div>
+      <div class="mission-sky-cloud cloud-two"></div>
+      <div class="mission-town-silhouette"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="mission-confetti mission-confetti-a">✦</div>
+      <div class="mission-confetti mission-confetti-b">●</div>
+      <div class="mission-confetti mission-confetti-c">✦</div>
+      <div class="mission-chibi-visual"><img src="mission-chibi-art-v2.png" alt="ตัวการ์ตูนต้อนรับ Mission" loading="eager"></div>
+      <div class="mission-scene-badge"><span>📍</span><b>กระทุ่มแบนไปด้วยกัน</b></div>
+    </div>
+    <div class="mission-welcome-copy">
+      <span id="missionWelcomeRoundLabel" class="mission-welcome-kicker">MISSION</span>
+      <h2>ภารกิจใหม่มาแล้ว! <span aria-hidden="true">🎯</span></h2>
+      <p>มาร่วมสนุกกับ Mission ของชุมชน<br><b>ทำภารกิจง่าย ๆ เพื่อลุ้นรับของรางวัลและสิทธิพิเศษ</b></p>
+      <div class="mission-welcome-perks" aria-label="จุดเด่นของ Mission">
+        <span>✓ ทำง่าย</span><span>🎁 มีรางวัล</span><span>🤝 สนับสนุนชุมชน</span>
+      </div>
+    </div>
+    <div class="mission-welcome-actions">
+      <button id="missionWelcomeStartBtn" class="primary mission-start-cta" type="button"><span class="mission-start-icon">🎯</span><span>ดู Mission และเริ่มเลย</span><strong>›</strong></button>
+      <button class="ghost mission-later-btn" type="button" data-close="missionWelcomeModal">ไว้ทีหลัง</button>
+    </div>
   </div>
 </div>
 
@@ -524,7 +541,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=0.5.22.147-R8.7.4-admin-deletion-load-repair"></script>
+<script src="app.js?v=0.5.22.147-R8.8-mission-round-chibi-popup"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">

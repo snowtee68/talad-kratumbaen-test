@@ -764,20 +764,47 @@ fieldset{border:1px solid var(--line);border-radius:14px;padding:14px}legend{fon
 .admin-actions .delivery-access-off{background:#f2f2f2!important;color:#555!important;border-color:#ddd!important;font-weight:800}
 
 
-/* Mission welcome popup */
-.mission-welcome-card{position:relative;text-align:center;max-width:470px;padding:0 0 20px;overflow:hidden;border-radius:28px}
-.mission-welcome-card>.close{z-index:5;background:rgba(255,255,255,.92);box-shadow:0 4px 14px rgba(0,0,0,.12)}
-.mission-welcome-hero{position:relative;padding:30px 24px 24px;background:linear-gradient(145deg,#fff4e8 0%,#fff 52%,#fff1f1 100%);border-bottom:1px solid #f4e4dc}
-.mission-welcome-icon{display:grid;place-items:center;width:78px;height:78px;margin:0 auto 10px;border-radius:24px;background:#fff;font-size:44px;line-height:1;box-shadow:0 12px 30px rgba(180,56,45,.16);transform:rotate(-3deg)}
-.mission-welcome-kicker{display:inline-flex;padding:5px 11px;border-radius:999px;background:#b92f28;color:#fff;font-size:11px;font-weight:900;letter-spacing:.08em}
-.mission-welcome-card h2{margin:9px 0 6px;font-size:29px;line-height:1.18;color:#2f2521}.mission-welcome-hero>p{margin:0 auto;color:#6f625d;line-height:1.55;max-width:390px;font-size:15px}.mission-welcome-hero>p b{color:#b92f28}
-.mission-confetti i{position:absolute;font-style:normal;font-size:18px}.mission-confetti i:nth-child(1){left:13%;top:28px}.mission-confetti i:nth-child(2){right:12%;top:34px}.mission-confetti i:nth-child(3){right:22%;top:96px;font-size:14px}
-.mission-welcome-reward{margin:16px 20px 0;padding:13px 15px;border:1px solid #f0d7a3;border-radius:18px;background:linear-gradient(135deg,#fff8df,#fffdf6);text-align:left;box-shadow:0 7px 20px rgba(159,112,26,.08)}.mission-welcome-reward.hidden{display:none}.mission-welcome-reward small{display:block;color:#9a6a12;font-weight:800;margin-bottom:3px}.mission-welcome-reward b{display:block;color:#4a3422;font-size:17px}.mission-welcome-reward p{margin:4px 0 0;color:#7b6a59;font-size:13px;line-height:1.45}
-.mission-welcome-quests{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:15px 20px 0}.mission-welcome-quests span{padding:9px 8px;border-radius:13px;background:#f8f6f4;color:#554a45;font-size:12px;font-weight:800}
-.mission-welcome-actions{display:grid;gap:7px;margin:16px 20px 0}.mission-welcome-actions button{width:100%;min-height:48px}.mission-start-cta{font-size:16px;font-weight:900;box-shadow:0 10px 22px rgba(185,47,40,.22)}.mission-later-btn{min-height:38px!important;border:0!important;background:transparent!important;color:#8b7e78!important}.mission-welcome-note{display:block;margin:8px 20px 0;color:#8b7e78;font-size:11px}
-@media(max-width:640px){.mission-welcome-card{max-width:calc(100vw - 28px)}.mission-welcome-hero{padding:27px 18px 21px}.mission-welcome-card h2{font-size:25px}.mission-welcome-icon{width:70px;height:70px;font-size:40px}.mission-welcome-reward,.mission-welcome-quests,.mission-welcome-actions{margin-left:16px;margin-right:16px}}
+/* Mission welcome popup - R8.8.1 visual upgrade */
+.mission-welcome-card{
+  --mw-blue:#1178e8;
+  --mw-blue-deep:#075cb9;
+  --mw-sky:#e9f7ff;
+  --mw-yellow:#ffd84d;
+  position:relative;
+  text-align:center;
+  max-width:470px;
+  padding:0 0 18px;
+  overflow:hidden;
+  border-radius:30px;
+  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(180deg,#f8fcff 0%,#fff 54%);
+  box-shadow:0 24px 70px rgba(25,67,111,.30),0 4px 18px rgba(33,68,103,.12)
+}
+.mission-welcome-close{z-index:20!important;top:13px!important;right:13px!important;width:42px!important;height:42px!important;border-radius:50%!important;background:rgba(255,255,255,.94)!important;color:#516273!important;box-shadow:0 7px 20px rgba(42,78,112,.20)!important;backdrop-filter:blur(8px)}
+.mission-welcome-scene{position:relative;height:255px;overflow:hidden;background:linear-gradient(180deg,#cfeeff 0%,#e8f8ff 62%,#f8fcff 100%)}
+.mission-welcome-scene:before{content:"";position:absolute;left:-16%;right:-16%;bottom:-85px;height:170px;border-radius:50%;background:#fff;z-index:5}
+.mission-welcome-scene:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 18%,rgba(255,255,255,.75),transparent 22%),linear-gradient(115deg,rgba(255,255,255,.22),transparent 46%);pointer-events:none}
+.mission-sky-cloud{position:absolute;height:34px;border-radius:999px;background:rgba(255,255,255,.78);filter:blur(.2px);z-index:1}
+.mission-sky-cloud:before,.mission-sky-cloud:after{content:"";position:absolute;border-radius:50%;background:inherit}
+.mission-sky-cloud:before{width:50px;height:50px;left:22px;bottom:0}.mission-sky-cloud:after{width:37px;height:37px;right:18px;bottom:0}
+.cloud-one{width:122px;left:-24px;top:42px}.cloud-two{width:104px;right:-20px;top:76px;opacity:.74;transform:scale(.85)}
+.mission-town-silhouette{position:absolute;left:0;right:0;bottom:41px;height:64px;display:flex;align-items:flex-end;justify-content:space-around;opacity:.13;z-index:1;padding:0 18px}
+.mission-town-silhouette i{display:block;width:48px;background:#1a6ea7;border-radius:7px 7px 0 0}.mission-town-silhouette i:nth-child(1){height:38px}.mission-town-silhouette i:nth-child(2){height:55px}.mission-town-silhouette i:nth-child(3){height:44px}.mission-town-silhouette i:nth-child(4){height:60px}.mission-town-silhouette i:nth-child(5){height:35px}
+.mission-chibi-visual{position:absolute;z-index:6;left:50%;bottom:-18px;width:250px;height:292px;transform:translateX(-50%);overflow:visible;background:transparent;border:0}
+.mission-chibi-visual img{display:block;width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 12px 12px rgba(24,66,104,.18))}
+.mission-scene-badge{position:absolute;z-index:8;left:16px;bottom:17px;display:flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid rgba(255,255,255,.85);border-radius:999px;background:rgba(255,255,255,.92);color:#155a91;box-shadow:0 6px 16px rgba(29,91,135,.14);font-size:11px;backdrop-filter:blur(7px)}
+.mission-scene-badge span{font-size:14px}.mission-scene-badge b{font-weight:800}
+.mission-confetti{position:absolute;z-index:4;font-weight:900}.mission-confetti-a{left:18%;top:52px;color:#ffbf1b;font-size:23px;transform:rotate(-13deg)}.mission-confetti-b{right:18%;top:45px;color:#ff7891;font-size:14px}.mission-confetti-c{right:12%;top:132px;color:#39b96a;font-size:18px;transform:rotate(18deg)}
+.mission-welcome-copy{position:relative;z-index:10;padding:7px 22px 0;background:#fff}
+.mission-welcome-kicker{display:inline-flex;align-items:center;justify-content:center;padding:6px 13px;border-radius:999px;background:linear-gradient(135deg,var(--mw-blue),#49a8ff);color:#fff;font-size:11px;font-weight:900;letter-spacing:.055em;box-shadow:0 6px 16px rgba(17,120,232,.18)}
+.mission-welcome-card h2{margin:11px 0 7px;font-size:27px;line-height:1.14;color:#1c3552;letter-spacing:-.01em}.mission-welcome-copy>p{margin:0 auto;color:#677688;line-height:1.55;max-width:395px;font-size:15px}.mission-welcome-copy>p b{color:#176fc8;font-weight:800}
+.mission-welcome-perks{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin:13px auto 0}.mission-welcome-perks span{display:inline-flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;background:#f1f8ff;color:#42657e;font-size:11px;font-weight:750;border:1px solid #dfedf8}
+.mission-welcome-actions{display:grid;gap:4px;margin:16px 20px 0}.mission-welcome-actions button{width:100%}.mission-start-cta{display:grid!important;grid-template-columns:32px 1fr 24px;align-items:center;gap:8px;min-height:56px!important;padding:10px 15px!important;border-radius:17px!important;background:linear-gradient(135deg,#1683ef 0%,#0967cf 100%)!important;color:#fff!important;font-size:16px!important;font-weight:900!important;border:0!important;box-shadow:0 12px 26px rgba(9,103,207,.27)!important;transition:transform .16s ease,box-shadow .16s ease}.mission-start-cta:active{transform:scale(.985);box-shadow:0 7px 17px rgba(9,103,207,.22)!important}.mission-start-cta strong{font-size:28px;line-height:1;font-weight:500}.mission-start-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.18);font-size:18px}.mission-later-btn{min-height:36px!important;border:0!important;background:transparent!important;color:#8a929a!important;font-size:12px!important;padding:5px!important}
+@media(max-width:640px){.mission-welcome-card{max-width:calc(100vw - 22px);border-radius:26px}.mission-welcome-scene{height:235px}.mission-chibi-visual{width:229px;height:268px;bottom:-16px}.mission-scene-badge{left:12px;bottom:14px;font-size:10px;padding:7px 9px}.mission-welcome-copy{padding:6px 16px 0}.mission-welcome-card h2{font-size:24px}.mission-welcome-copy>p{font-size:14px}.mission-welcome-actions{margin:14px 15px 0}.mission-welcome-perks{gap:5px}.mission-welcome-perks span{font-size:10px;padding:5px 7px}}
+@media(max-height:690px) and (max-width:640px){.mission-welcome-scene{height:198px}.mission-chibi-visual{width:195px;height:228px}.mission-welcome-card h2{font-size:22px;margin-top:8px}.mission-welcome-copy>p{font-size:13px;line-height:1.42}.mission-welcome-perks{margin-top:9px}.mission-welcome-actions{margin-top:10px}.mission-start-cta{min-height:50px!important}}
 
 /* v0.5.21.5 Mission reward admin */
+.mission-round-admin{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px;padding:14px 16px;border:1px solid #cfe1f5;border-radius:16px;background:#f4f9ff}.mission-round-admin small{display:block;color:#667085;line-height:1.4}.mission-round-number{font-size:20px;font-weight:800;color:#164b86;margin:2px 0}.mission-round-actions{display:grid;justify-items:end;gap:5px;max-width:320px}.mission-round-actions .danger{white-space:nowrap}.mission-round-actions small{text-align:right}@media(max-width:640px){.mission-round-admin{align-items:stretch;flex-direction:column}.mission-round-actions{justify-items:stretch;max-width:none}.mission-round-actions small{text-align:left}}
 .admin-mission-reward{margin:0 0 24px;padding:20px;border:1px solid #eadede;border-radius:18px;background:#fff;}
 .mission-reward-form{display:grid;gap:12px;}
 .mission-reward-form label{display:grid;gap:6px;font-weight:600;}
