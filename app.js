@@ -1893,15 +1893,20 @@
     const text=`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`;
     const url=shopDirectUrl(shopId);
 
-    // R8.8.3: Android Capacitor should use the native share sheet when the Share plugin exists.
-    // This does not change iOS/web behavior and safely falls back when the plugin is unavailable.
+    // R8.8.7: call Capacitor Share only when the native plugin is actually registered.
+    // Capacitor can expose a JS proxy even when the native implementation is missing;
+    // calling that proxy can appear to do nothing on Android.
     try{
       const cap=window.Capacitor;
-      const nativeShare=cap?.Plugins?.Share;
       const isNative=Boolean(cap?.isNativePlatform?.()||cap?.getPlatform?.()==='android'||cap?.getPlatform?.()==='ios');
-      if(isNative&&nativeShare?.share){
-        await nativeShare.share({title,text,url,dialogTitle:'แชร์ร้านนี้'});
-        return;
+      const canCheckPlugin=typeof cap?.isPluginAvailable==='function';
+      const nativeShareAvailable=Boolean(isNative&&canCheckPlugin&&cap.isPluginAvailable('Share'));
+      if(nativeShareAvailable){
+        const nativeShare=cap?.Plugins?.Share;
+        if(nativeShare?.share){
+          await nativeShare.share({title,text,url,dialogTitle:'แชร์ร้านนี้'});
+          return;
+        }
       }
     }catch(e){
       const msg=String(e?.message||e||'');
@@ -1909,8 +1914,14 @@
       console.warn('Native shop share unavailable; falling back to Web Share',e);
     }
 
-    if(navigator.share){
-      try{await navigator.share({title,text,url});return;}catch(e){if(e?.name==='AbortError')return;}
+    if(typeof navigator.share==='function'){
+      try{
+        await navigator.share({title,text,url});
+        return;
+      }catch(e){
+        if(e?.name==='AbortError')return;
+        console.warn('Web Share unavailable; falling back to clipboard',e);
+      }
     }
     await copyShopDirectLink(shopId);
   }
