@@ -1893,17 +1893,30 @@
     const text=`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`;
     const url=shopDirectUrl(shopId);
 
-    // R8.8.7: call Capacitor Share only when the native plugin is actually registered.
-    // Capacitor can expose a JS proxy even when the native implementation is missing;
-    // calling that proxy can appear to do nothing on Android.
+    const fallbackShare=async()=>{
+      if(typeof navigator.share==='function'){
+        try{
+          await navigator.share({title,text,url});
+          return true;
+        }catch(e){
+          if(e?.name==='AbortError')return true;
+          console.warn('Web Share unavailable; falling back to clipboard',e);
+        }
+      }
+      await copyShopDirectLink(shopId);
+      return true;
+    };
+
+    // R8.8.8: Capacitor 7+ uses a registered plugin proxy rather than the legacy Plugins.Share object.
+    // This works with the native @capacitor/share plugin installed in the Android shell even though
+    // the marketplace JavaScript itself is served from the production server URL.
     try{
       const cap=window.Capacitor;
       const isNative=Boolean(cap?.isNativePlatform?.()||cap?.getPlatform?.()==='android'||cap?.getPlatform?.()==='ios');
-      const canCheckPlugin=typeof cap?.isPluginAvailable==='function';
-      const nativeShareAvailable=Boolean(isNative&&canCheckPlugin&&cap.isPluginAvailable('Share'));
-      if(nativeShareAvailable){
-        const nativeShare=cap?.Plugins?.Share;
-        if(nativeShare?.share){
+      const nativeShareAvailable=Boolean(isNative&&typeof cap?.isPluginAvailable==='function'&&cap.isPluginAvailable('Share'));
+      if(nativeShareAvailable&&typeof cap?.registerPlugin==='function'){
+        const nativeShare=cap.registerPlugin('Share');
+        if(nativeShare&&typeof nativeShare.share==='function'){
           await nativeShare.share({title,text,url,dialogTitle:'แชร์ร้านนี้'});
           return;
         }
@@ -1914,16 +1927,7 @@
       console.warn('Native shop share unavailable; falling back to Web Share',e);
     }
 
-    if(typeof navigator.share==='function'){
-      try{
-        await navigator.share({title,text,url});
-        return;
-      }catch(e){
-        if(e?.name==='AbortError')return;
-        console.warn('Web Share unavailable; falling back to clipboard',e);
-      }
-    }
-    await copyShopDirectLink(shopId);
+    await fallbackShare();
   }
   function browseOtherShops(){
     closeModal('shopDetailModal');
