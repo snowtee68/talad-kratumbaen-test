@@ -942,7 +942,9 @@
     let quality=0.86;
     let blob=null;
 
-    for(let attempt=0;attempt<24;attempt++){
+    // R8.8.3: allow more resize passes for high-detail phone photos.
+    // Keep lowering resolution instead of rejecting a valid image that is under 20 MB.
+    for(let attempt=0;attempt<40;attempt++){
       const canvas=document.createElement('canvas');
       canvas.width=width;
       canvas.height=height;
@@ -955,18 +957,22 @@
 
       if(blob.size<=maxBytes)break;
 
-      if(quality>0.46){
-        quality=Math.max(0.46,quality-0.07);
+      if(quality>0.48){
+        quality=Math.max(0.48,quality-0.06);
       }else{
-        const scale=blob.size>maxBytes*2 ? 0.72 : 0.84;
-        width=Math.max(480,Math.round(width*scale));
-        height=Math.max(360,Math.round(height*scale));
-        quality=0.74;
+        const oversize=blob.size/Math.max(1,maxBytes);
+        const scale=oversize>2.5?0.68:oversize>1.6?0.76:0.84;
+        const nextWidth=Math.max(360,Math.round(width*scale));
+        const nextHeight=Math.max(270,Math.round(height*scale));
+        if(nextWidth===width&&nextHeight===height)break;
+        width=nextWidth;
+        height=nextHeight;
+        quality=0.76;
       }
     }
 
     if(!blob||blob.size>maxBytes){
-      throw new Error(`ย่อรูปไม่สำเร็จ กรุณาใช้รูป JPG/PNG ที่ไม่เกิน 20 MB`);
+      throw new Error('ไม่สามารถประมวลผลรูปนี้ได้ กรุณาลองใช้ JPG/PNG/WEBP หรือเลือกรูปความละเอียดต่ำลง');
     }
 
     return new File([blob],`${Date.now()}.webp`,{type:'image/webp'});
@@ -984,6 +990,27 @@
     if(!path)return;
     const {error}=await db.storage.from(bucket).remove([path]);
     if(error)console.warn('ลบรูปเก่าไม่สำเร็จ:',error.message);
+  }
+
+  async function cleanupOldShopCoverFiles(currentUrl){
+    const currentPath=storagePathFromPublicUrl(currentUrl,'shop-images');
+    if(!currentPath)return;
+    const slash=currentPath.lastIndexOf('/');
+    if(slash<0)return;
+    const folder=currentPath.slice(0,slash);
+    const currentName=currentPath.slice(slash+1);
+    try{
+      const {data,error}=await db.storage.from('shop-images').list(folder,{limit:100,sortBy:{column:'created_at',order:'desc'}});
+      if(error)throw error;
+      const stale=(data||[])
+        .filter(item=>item?.name&&item.name!==currentName)
+        .map(item=>`${folder}/${item.name}`);
+      if(!stale.length)return;
+      const {error:removeError}=await db.storage.from('shop-images').remove(stale);
+      if(removeError)throw removeError;
+    }catch(err){
+      console.warn('ล้างไฟล์รูปร้านเก่าที่ค้างไม่สำเร็จ:',err?.message||err);
+    }
   }
 
   async function uploadCompressedImage(file,bucket,pathPrefix,limits={}){
@@ -1862,11 +1889,30 @@
   }
   async function shareShopDirectLink(shopId){
     const shop=[...shops,...shopIndex].find(s=>String(s.id)===String(shopId));
+    const title=shop?.name||'ร้านค้าในตลาดกระทุ่มแบน';
+    const text=`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`;
     const url=shopDirectUrl(shopId);
-    if(navigator.share){
-      try{await navigator.share({title:shop?.name||'ร้านค้าในตลาดกระทุ่มแบน',text:`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`,url});return;}catch(e){if(e?.name==='AbortError')return;}
+
+    // R8.8.3: Android Capacitor should use the native share sheet when the Share plugin exists.
+    // This does not change iOS/web behavior and safely falls back when the plugin is unavailable.
+    try{
+      const cap=window.Capacitor;
+      const nativeShare=cap?.Plugins?.Share;
+      const isNative=Boolean(cap?.isNativePlatform?.()||cap?.getPlatform?.()==='android'||cap?.getPlatform?.()==='ios');
+      if(isNative&&nativeShare?.share){
+        await nativeShare.share({title,text,url,dialogTitle:'แชร์ร้านนี้'});
+        return;
+      }
+    }catch(e){
+      const msg=String(e?.message||e||'');
+      if(e?.name==='AbortError'||/cancel/i.test(msg))return;
+      console.warn('Native shop share unavailable; falling back to Web Share',e);
     }
-    copyShopDirectLink(shopId);
+
+    if(navigator.share){
+      try{await navigator.share({title,text,url});return;}catch(e){if(e?.name==='AbortError')return;}
+    }
+    await copyShopDirectLink(shopId);
   }
   function browseOtherShops(){
     closeModal('shopDetailModal');
@@ -3095,7 +3141,7 @@
   }
 
   async function uploadCover(file, shopId){
-    return uploadCompressedImage(file,'shop-images',`${session.user.id}/${shopId}`,{maxWidth:1200,maxHeight:1200,maxBytes:450*1024});
+    return uploadCompressedImage(file,'shop-images',`${session.user.id}/${shopId}`,{maxWidth:1400,maxHeight:1400,maxBytes:700*1024});
   }
 
   function useCurrentLocationForShop(){
@@ -3150,6 +3196,7 @@
       }
       if(result.error){if(payload.cover_url)await removeStoredImage(payload.cover_url,'shop-images');throw result.error;}
       if(payload.cover_url&&oldCoverUrl&&payload.cover_url!==oldCoverUrl)await removeStoredImage(oldCoverUrl,'shop-images');
+      if(payload.cover_url)await cleanupOldShopCoverFiles(payload.cover_url);
       form.reset();closeModal('shopModal');
       showNotice(existingId?'บันทึกการแก้ไขแล้ว สถานะการอนุมัติเดิมยังคงอยู่':'เพิ่มร้านแล้ว และกำลังรอแอดมินตรวจสอบ');
       await loadShopIndex();

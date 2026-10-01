@@ -711,6 +711,45 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   }
   async function safeRemove(bucket,path){if(!path)return true;const {error}=await db.storage.from(bucket).remove([path]);if(error){console.warn('ลบไฟล์เก่าไม่สำเร็จ',path,error.message);return false}return true;}
 
+  async function cleanupProductImageOrphans(shopId){
+    if(!db||!session?.user?.id||!shopId)return;
+    try{
+      const {data:products,error:productErr}=await db
+        .from('market_products')
+        .select('image_path')
+        .eq('shop_id',shopId);
+      if(productErr)throw productErr;
+
+      const referenced=new Set((products||[])
+        .map(x=>String(x.image_path||'').trim())
+        .filter(Boolean));
+      const prefix=`${session.user.id}/${shopId}/products`;
+      const files=[];
+      for(let offset=0;;offset+=1000){
+        const {data,error}=await db.storage.from('shop-images').list(prefix,{
+          limit:1000,offset,sortBy:{column:'name',order:'asc'}
+        });
+        if(error)throw error;
+        const batch=(data||[]).filter(x=>x?.name&&x?.id);
+        files.push(...batch);
+        if((data||[]).length<1000)break;
+      }
+      const orphanPaths=files
+        .map(x=>`${prefix}/${x.name}`)
+        .filter(path=>!referenced.has(path));
+      for(let i=0;i<orphanPaths.length;i+=100){
+        const chunk=orphanPaths.slice(i,i+100);
+        if(!chunk.length)continue;
+        const {error}=await db.storage.from('shop-images').remove(chunk);
+        if(error)throw error;
+      }
+      if(orphanPaths.length)console.info(`Product image cleanup: removed ${orphanPaths.length} orphan file(s) for shop ${shopId}`);
+    }catch(err){
+      // Cleanup must never interrupt normal product/order flows.
+      console.warn('Product image cleanup skipped:',err?.message||err);
+    }
+  }
+
   async function refreshProductShops(){
     const [{data:access,error:aErr},{data:settings,error:sErr},{data:products,error:pErr}]=await Promise.all([
       db.from('market_order_shop_access').select('shop_id').eq('enabled',true).limit(5000),
@@ -2235,6 +2274,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       const payload={shop_id:shopId,name,price,description:description||null,category_id:category_id||null,active,sale_status,sort_order:sort,image_url:image,image_path:imagePath,updated_at:new Date().toISOString()};let productId=id;
       try{if(id){const {error}=await db.from('market_products').update(payload).eq('id',id);if(error)throw error;}else{const {data,error}=await db.from('market_products').insert(payload).select('id').single();if(error)throw error;productId=data.id;}await syncProductOptions(productId);}catch(error){if(newImagePath)await safeRemove('shop-images',newImagePath);newImagePath=null;return alert('บันทึกสินค้า/ตัวเลือกไม่สำเร็จ: '+error.message)}
       if(newImagePath&&oldImagePath&&oldImagePath!==newImagePath)await safeRemove('shop-images',oldImagePath);
+      cleanupProductImageOrphans(shopId);
       alert('บันทึกสินค้าและตัวเลือกแล้ว');
       await refreshProductShops();
       openSellerShop(shopId);
@@ -2263,7 +2303,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
 
   async function deleteProduct(id){
     if(!confirm('ลบสินค้านี้ถาวรจริงหรือไม่?\n\nแนะนำให้ใช้สถานะ “เลิกขาย” แทน เพื่อเก็บข้อมูลสินค้าไว้ หากเป็นสินค้าที่เคยขายจริง'))return;
-    const {data:p,error:readErr}=await db.from('market_products').select('shop_id,image_path').eq('id',id).maybeSingle();if(readErr||!p)return alert(readErr?.message||'ไม่พบสินค้า');const {error}=await db.from('market_products').delete().eq('id',id);if(error)return alert(error.message);if(p.image_path)await safeRemove('shop-images',p.image_path);await refreshProductShops();openSellerShop(p.shop_id);
+    const {data:p,error:readErr}=await db.from('market_products').select('shop_id,image_path').eq('id',id).maybeSingle();if(readErr||!p)return alert(readErr?.message||'ไม่พบสินค้า');const {error}=await db.from('market_products').delete().eq('id',id);if(error)return alert(error.message);if(p.image_path)await safeRemove('shop-images',p.image_path);cleanupProductImageOrphans(p.shop_id);await refreshProductShops();openSellerShop(p.shop_id);
   }
   async function sellerAcceptOrder(orderId){
     if(!confirm('รับออเดอร์นี้และเปิดให้ลูกค้าชำระเงิน?'))return;
