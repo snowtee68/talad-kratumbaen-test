@@ -1893,41 +1893,33 @@
     const text=`ดูร้าน ${shop?.name||''} ในตลาดกระทุ่มแบน`;
     const url=shopDirectUrl(shopId);
 
-    const fallbackShare=async()=>{
-      if(typeof navigator.share==='function'){
-        try{
-          await navigator.share({title,text,url});
-          return true;
-        }catch(e){
-          if(e?.name==='AbortError')return true;
-          console.warn('Web Share unavailable; falling back to clipboard',e);
-        }
-      }
-      await copyShopDirectLink(shopId);
-      return true;
-    };
-
-    // R8.8.8: Capacitor 7+ uses a registered plugin proxy rather than the legacy Plugins.Share object.
-    // This works with the native @capacitor/share plugin installed in the Android shell even though
-    // the marketplace JavaScript itself is served from the production server URL.
+    // R8.8.9: Android production shell exposes this existing native bridge.
+    // Calling it directly opens Android ACTION_SEND / Share Sheet and does not
+    // depend on the production web page importing the Capacitor Share package.
     try{
+      const nativeBridge=window.MarketNativeAlert;
       const cap=window.Capacitor;
-      const isNative=Boolean(cap?.isNativePlatform?.()||cap?.getPlatform?.()==='android'||cap?.getPlatform?.()==='ios');
-      const nativeShareAvailable=Boolean(isNative&&typeof cap?.isPluginAvailable==='function'&&cap.isPluginAvailable('Share'));
-      if(nativeShareAvailable&&typeof cap?.registerPlugin==='function'){
-        const nativeShare=cap.registerPlugin('Share');
-        if(nativeShare&&typeof nativeShare.share==='function'){
-          await nativeShare.share({title,text,url,dialogTitle:'แชร์ร้านนี้'});
-          return;
-        }
+      const platform=typeof cap?.getPlatform==='function'?cap.getPlatform():'';
+      if(platform==='android'&&nativeBridge&&typeof nativeBridge.shareShop==='function'){
+        nativeBridge.shareShop(title,text,url);
+        return;
       }
     }catch(e){
-      const msg=String(e?.message||e||'');
-      if(e?.name==='AbortError'||/cancel/i.test(msg))return;
-      console.warn('Native shop share unavailable; falling back to Web Share',e);
+      console.warn('Android native shop share bridge unavailable',e);
     }
 
-    await fallbackShare();
+    // iPhone / supported browsers keep the existing system Web Share sheet.
+    if(typeof navigator.share==='function'){
+      try{
+        await navigator.share({title,text,url});
+        return;
+      }catch(e){
+        if(e?.name==='AbortError')return;
+        console.warn('Web Share unavailable; falling back to clipboard',e);
+      }
+    }
+
+    await copyShopDirectLink(shopId);
   }
   function browseOtherShops(){
     closeModal('shopDetailModal');
