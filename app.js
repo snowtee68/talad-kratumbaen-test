@@ -9,7 +9,16 @@
   );
   // R8.2: keep one shared Supabase client so Order + Rider Realtime reuse the same socket.
   // No subscription, polling, Push/FCM, Order, Delivery, or auth flow is changed here.
-  const db = configured ? (window.MARKET_SUPABASE_CLIENT || supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)) : null;
+  const db = configured ? (
+    window.MARKET_SUPABASE_CLIENT ||
+    supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  ) : null;
   if(db&&!window.MARKET_SUPABASE_CLIENT)window.MARKET_SUPABASE_CLIENT=db;
   const DEMO = [{id:'demo',name:'Snowtee ตลาดกระทุ่มแบน',description:'เครื่องดื่ม ไอศกรีมซอฟต์เสิร์ฟ และเบเกอรี่ บรรยากาศริมคลอง',category:{name:'เครื่องดื่ม'},address:'ตลาดกระทุ่มแบน จังหวัดสมุทรสาคร',phone:'0642211876',facebook:'https://facebook.com/snowtee68',line:'snowtee68',latitude:13.6549,longitude:100.2639,status:'approved',featured:true,cover_url:null}];
 
