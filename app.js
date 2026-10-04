@@ -4049,7 +4049,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h3>🤖 สำหรับ Android</h3>
           <p>แนะนำให้ใช้แอป Android เพื่อรับการแจ้งเตือนออเดอร์และงาน Rider ได้เต็มรูปแบบ</p>
           <a class="btn primary" href="./downloads/app-release.apk">⬇️ ดาวน์โหลดแอป Android</a>
-          <p class="install-note"><strong>หลังดาวน์โหลดเสร็จ</strong> ให้เปิดรายการดาวน์โหลด แล้วกดไฟล์ <strong>app-release.apk</strong> เพื่อเริ่มติดตั้งแอป<br>หาก Android แจ้งเตือนเรื่องความปลอดภัย ให้อนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เพื่อดำเนินการต่อ<br><small>เวอร์ชัน v1.0.1</small></p>
+          <p class="install-note"><strong>หลังดาวน์โหลดเสร็จ</strong> ให้เปิดรายการดาวน์โหลด แล้วกดไฟล์ <strong>app-release.apk</strong> เพื่อเริ่มติดตั้งแอป<br>หาก Android แจ้งเตือนเรื่องความปลอดภัย ให้อนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เพื่อดำเนินการต่อ<br><small>เวอร์ชัน v1.0</small></p>
           ${androidExtra}
         </div>
 
