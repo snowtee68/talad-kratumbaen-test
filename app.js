@@ -2751,6 +2751,51 @@
   }
 
 
+  // R8.8.15: Before sign-out, detach ONLY the current account from the current
+  // browser/PWA endpoint. Keep the local PushManager subscription alive so a
+  // different account on the same device can reuse/repair it after login.
+  // This prevents a browser that previously used an Admin/Seller/Rider account
+  // from continuing to receive that account's Push after logout.
+  async function detachCurrentWebPushAccount(){
+    if(!db || !session?.user?.id) return {ok:true,reason:'no_session'};
+    try{
+      if(window.marketIsNativeApp?.()) return {ok:true,reason:'native_uses_fcm'};
+      if(!('serviceWorker' in navigator)||!('PushManager' in window)) return {ok:true,reason:'unsupported'};
+
+      let sub=null;
+      if(typeof window.marketGetPushSubscription==='function'){
+        try{sub=await window.marketGetPushSubscription();}catch(_err){}
+      }
+      if(!sub){
+        const reg=await navigator.serviceWorker.getRegistration('./')||await navigator.serviceWorker.getRegistration();
+        sub=reg?await reg.pushManager.getSubscription():null;
+      }
+      if(!sub?.endpoint) return {ok:true,reason:'no_local_subscription'};
+
+      const userId=session.user.id;
+      const {error}=await db.from('market_push_subscriptions')
+        .delete()
+        .eq('user_id',userId)
+        .eq('endpoint',sub.endpoint);
+      if(error) throw error;
+
+      console.log('[Push] current account detached from this browser before sign-out');
+      return {ok:true,reason:'detached'};
+    }catch(err){
+      // Never block logout if Push cleanup cannot complete (for example offline).
+      console.warn('[Push] current browser detach before sign-out failed',err);
+      return {ok:false,reason:'detach_failed',error:err?.message||String(err)};
+    }
+  }
+
+  async function cleanupCurrentDevicePushBeforeSignOut(){
+    // Native FCM and Web/PWA Push are independent transports. Clean both while
+    // the current authenticated user still has permission to update its rows.
+    await deactivateNativePushToken();
+    await detachCurrentWebPushAccount();
+  }
+
+
   async function refreshAuth(){
     if(!db){ updateAccountUI(); return; }
     const {data}=await db.auth.getSession(); session=data.session;
@@ -3563,7 +3608,7 @@
         alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
         form.reset();closeModal('resetPasswordModal');
         history.replaceState(null,'',window.location.pathname);
-        await deactivateNativePushToken();
+        await cleanupCurrentDevicePushBeforeSignOut();
         await db.auth.signOut();session=null;profile=null;updateAccountUI();openModal('authModal');
       }catch(err){alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='บันทึกรหัสผ่านใหม่';}
@@ -3572,7 +3617,7 @@
     $('cancelAccountDeletionBtn')?.addEventListener('click',cancelAccountDeletionRequest);
     $('signOutBtn').addEventListener('click',async()=>{
       if(!db)return;
-      await deactivateNativePushToken();
+      await cleanupCurrentDevicePushBeforeSignOut();
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
       session=null;profile=null;accountDeletionRequest=null;updateAccountUI();applyAdminCenterMode();renderAccountDeletionStatus();
