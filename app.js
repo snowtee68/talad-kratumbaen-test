@@ -794,7 +794,7 @@
       if(e1)throw e1;if(e2)throw e2;
       const rows=riders||[];
       if(status)status.textContent=`${rows.length.toLocaleString('th-TH')} คนในทะเบียน`;
-      if(list)list.innerHTML=rows.length?rows.map(r=>{const systemRider=r.source==='rider_profiles';const sourceLabel=systemRider?' · บัญชี Rider ในระบบ':r.source==='admin'?' · Admin เพิ่ม':' · พบจากงาน Delivery';const action=systemRider?'<span class="muted" style="font-size:12px">จัดการสถานะจากระบบ Rider</span>':`<button type="button" class="${r.enabled?'danger':'secondary'}" data-rider-toggle="${r.id}" data-rider-enabled="${r.enabled?'true':'false'}">${r.enabled?'ปิดใช้งาน':'เปิดใช้งาน'}</button>`;return `<div style="display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(125px,1fr) minmax(90px,.7fr) minmax(110px,.8fr) minmax(110px,.9fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eee"><div><b>${esc(r.display_name||'ไม่ระบุชื่อ')}</b><small class="muted" style="display:block">${r.enabled?'🟢 เปิดใช้งาน':'⚫ ปิดใช้งาน'}${sourceLabel}</small></div><div><a href="tel:${esc(r.phone||'')}">${esc(r.phone||'-')}</a></div><div><b>${Number(r.active_jobs||0)}</b><small class="muted" style="display:block">งานกำลังทำ</small></div><div><b>${Number(r.completed_jobs||0)}</b><small class="muted" style="display:block">ส่งสำเร็จ</small></div>${action}</div>`}).join(''):'<p class="muted">ยังไม่มี Rider ในระบบ</p>';
+      if(list)list.innerHTML=rows.length?rows.map(r=>{const systemRider=r.source==='rider_profiles';const sourceLabel=systemRider?' · บัญชี Rider ในระบบ':r.source==='admin'?' · Admin เพิ่ม':' · พบจากงาน Delivery';const action=systemRider?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start"><button type="button" class="secondary" data-rider-native-test="${esc(r.id)}" ${r.enabled?'':'disabled'}>🔔 ทดสอบ Native</button><small class="muted" data-rider-native-test-result="${esc(r.id)}">${r.enabled?'ทดสอบ Android App เฉพาะคนนี้':'บัญชี Rider ยังไม่เปิดใช้งาน'}</small></div>`:`<button type="button" class="${r.enabled?'danger':'secondary'}" data-rider-toggle="${r.id}" data-rider-enabled="${r.enabled?'true':'false'}">${r.enabled?'ปิดใช้งาน':'เปิดใช้งาน'}</button>`;return `<div style="display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(125px,1fr) minmax(90px,.7fr) minmax(110px,.8fr) minmax(150px,1.15fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eee"><div><b>${esc(r.display_name||'ไม่ระบุชื่อ')}</b><small class="muted" style="display:block">${r.enabled?'🟢 เปิดใช้งาน':'⚫ ปิดใช้งาน'}${sourceLabel}</small></div><div><a href="tel:${esc(r.phone||'')}">${esc(r.phone||'-')}</a></div><div><b>${Number(r.active_jobs||0)}</b><small class="muted" style="display:block">งานกำลังทำ</small></div><div><b>${Number(r.completed_jobs||0)}</b><small class="muted" style="display:block">ส่งสำเร็จ</small></div>${action}</div>`}).join(''):'<p class="muted">ยังไม่มี Rider ในระบบ</p>';
       const jr=recent||[];
       if(jobs)jobs.innerHTML=jr.length?jr.map(j=>{const genuinelyWaiting=['creating','waiting_rider','created','open'].includes(String(j.status||''));const hasRider=!!(j.rider_name||j.rider_phone);const riderTitle=hasRider?(j.rider_name||'ไม่ระบุชื่อ Rider'):(genuinelyWaiting?'รอ Rider รับงาน':'ไม่พบข้อมูล Rider (งานเก่า)');const riderSub=j.rider_phone?`<a href="tel:${esc(j.rider_phone)}">${esc(j.rider_phone)}</a>`:(genuinelyWaiting?'ยังไม่มีเบอร์':'ไม่มีข้อมูลผู้รับงานที่บันทึกไว้');return `<div style="display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.5fr) minmax(120px,1fr) minmax(120px,1fr);gap:10px;padding:9px 0;border-bottom:1px solid #eee"><div><b>${esc(String(j.batch_id||'').slice(0,8).toUpperCase())}</b><small class="muted" style="display:block">${j.rider_job_id?esc(String(j.rider_job_id).slice(0,10)):'-'}</small></div><div><b>${hasRider?'🛵 ':genuinelyWaiting?'⏳ ':'⚠️ '}${esc(riderTitle)}</b><small style="display:block">${riderSub}</small></div><div><b>${esc(riderJobStatusLabel(j.status))}</b><small class="muted" style="display:block">${j.accepted_at?new Date(j.accepted_at).toLocaleString('th-TH'):'-'}</small></div><div><b>${j.delivery_fee?Number(j.delivery_fee).toLocaleString('th-TH')+' บาท':'-'}</b><small class="muted" style="display:block">${j.distance_km?Number(j.distance_km).toFixed(1)+' กม.':''}</small></div></div>`}).join(''):'<p class="muted">ยังไม่มีงาน Delivery</p>';
     }catch(err){
@@ -820,6 +820,45 @@
       const {error}=await db.rpc('market_admin_set_rider_enabled',{p_rider_id:id,p_enabled:!enabled});
       if(error)throw error;await loadRiderAdminPanel();
     }catch(err){alert('เปลี่ยนสถานะ Rider ไม่สำเร็จ: '+(err?.message||err));}
+  }
+
+
+  async function testAdminRiderNativePush(userId,btn){
+    if(!db||profile?.role!=='admin')return alert('เฉพาะ Admin เท่านั้น');
+    userId=String(userId||'').trim();
+    if(!userId)return;
+    if(!confirm('ส่ง Native Push ทดสอบไปยัง Rider คนนี้ตอนนี้?\n\nระบบจะส่งเสียง/แจ้งเตือนแบบเดียวกับงาน Rider จริง แต่จะไม่สร้าง Order, Delivery หรืองาน Rider ใหม่'))return;
+    const old=btn?.textContent||'🔔 ทดสอบ Native';
+    const result=document.querySelector(`[data-rider-native-test-result="${CSS.escape(userId)}"]`);
+    if(btn){btn.disabled=true;btn.textContent='⏳ กำลังทดสอบ...';}
+    if(result)result.textContent='กำลังส่งไปยัง FCM...';
+    try{
+      const {data,error}=await db.functions.invoke('admin-test-rider-push',{body:{user_id:userId}});
+      if(error)throw error;
+      const riderName=String(data?.rider_name||'Rider คนนี้');
+      const tokens=Number(data?.tokens||0);
+      const sent=Number(data?.sent||0);
+      const failed=Number(data?.failed||0);
+      const removed=Number(data?.removed||0);
+      const time=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+      if(data?.reason==='no_native_token'||tokens===0){
+        if(result)result.textContent=`⚠️ ไม่พบ Native token · ${time}`;
+        alert(`⚠️ ${riderName} ยังไม่มี Android Native FCM token ที่ Active\n\nถ้าใช้งานผ่าน Android App ให้เปิดแอปและเข้าสู่ระบบอีกครั้ง แล้วค่อยทดสอบใหม่`);
+        return;
+      }
+      if(sent>0&&failed===0){
+        if(result)result.textContent=`✅ FCM accepted ${sent}/${tokens} · ${time}`;
+        alert(`✅ ส่ง Native Push ทดสอบให้ ${riderName} แล้ว\nFCM accepted ${sent}/${tokens} เครื่อง${removed?` · ปิด token เก่า ${removed}`:''}\n\nหมายเหตุ: accepted หมายถึง Firebase รับข้อความแล้ว ให้ตรวจที่เครื่อง Rider ว่าการแจ้งเตือนขึ้นทันทีหรือไม่`);
+        return;
+      }
+      if(result)result.textContent=`⚠️ FCM ${sent}/${tokens} · fail ${failed} · ${time}`;
+      alert(`⚠️ ทดสอบ Native Push ของ ${riderName}\nสำเร็จ ${sent}/${tokens} เครื่อง · ไม่สำเร็จ ${failed}${removed?` · ปิด token เก่า ${removed}`:''}\n\nดู Edge Function Logs ของ admin-test-rider-push เพื่อดูรายละเอียด`);
+    }catch(err){
+      if(result)result.textContent='❌ ทดสอบไม่สำเร็จ';
+      alert('ทดสอบ Native Push ไม่สำเร็จ: '+(err?.message||err));
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=old;}
+    }
   }
 
   async function loadAnalyticsDashboard(period=analyticsPeriod){
@@ -3623,7 +3662,7 @@
     $('deliverySystemForm')?.addEventListener('submit',saveDeliverySystemSetting);
     $('adminRiderForm')?.addEventListener('submit',saveAdminRider);
     $('adminRiderRefreshBtn')?.addEventListener('click',loadRiderAdminPanel);
-    $('adminRiderList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-rider-toggle]');if(b)toggleAdminRider(b.dataset.riderToggle,b.dataset.riderEnabled==='true');});
+    $('adminRiderList')?.addEventListener('click',ev=>{const test=ev.target.closest('[data-rider-native-test]');if(test){ev.preventDefault();testAdminRiderNativePush(test.dataset.riderNativeTest,test);return;}const b=ev.target.closest('[data-rider-toggle]');if(b)toggleAdminRider(b.dataset.riderToggle,b.dataset.riderEnabled==='true');});
     $('missionBtn')?.addEventListener('click',openMission);
     $('missionWelcomeStartBtn')?.addEventListener('click',()=>{closeModal('missionWelcomeModal');openMission();});
     const locateMapBtn=$('locateMapBtn');
