@@ -1330,8 +1330,8 @@
       const bs=(bp*25)+(br.average*10)+Math.min(br.count,20);
       return bs-as;
     });
-    const ids=featured.slice(0,6).map(shop=>shop.id);
-    featuredShops=db?await fetchFullShopsByIds(ids):DEMO.filter(shop=>shop.featured===true).slice(0,6);
+    const ids=featured.slice(0,10).map(shop=>shop.id);
+    featuredShops=db?await fetchFullShopsByIds(ids):DEMO.filter(shop=>shop.featured===true).slice(0,10);
     renderRecommended();
   }
 
@@ -1609,7 +1609,7 @@
   }
 
   function recommendedShops(){
-    return featuredShops.slice(0,6);
+    return featuredShops.slice(0,10);
   }
 
   function isFavorite(shopId){ return favorites.has(String(shopId)); }
