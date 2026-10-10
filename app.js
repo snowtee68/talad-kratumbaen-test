@@ -1254,6 +1254,12 @@
     ]);
     if(shopResult.error)throw shopResult.error;
     shopIndex=shopResult.data||[];
+    // Deep-link welcome uses the already-loaded public shop index; no extra requests.
+    if(document.documentElement.classList.contains('shop-link-pending')){
+      const directShopId=new URLSearchParams(location.search).get('shop');
+      const directShop=shopIndex.find(s=>String(s.id)===String(directShopId));
+      if(directShop?.name)document.body?.setAttribute('data-shop-welcome',`ยินดีต้อนรับสู่ร้าน ${directShop.name}`);
+    }
     if(accessResult.error||settingResult.error){
       projectDeliveryShopIds=new Set();
       console.debug('Delivery shop filter fallback:',accessResult.error?.message||settingResult.error?.message);
@@ -1920,6 +1926,8 @@
     $('reviewShopName').textContent=shop.name;
     closeModal('promotionDetailModal');
     openModal('shopDetailModal');
+    // Reveal the requested shop as soon as its details modal is ready.
+    document.documentElement.classList.remove('shop-link-pending');
     await Promise.all([loadShopReviews(shopId),loadPublicShopCoupons(shopId)]);
   }
 
@@ -3805,6 +3813,7 @@
     trackAnalytics('page_view');
     try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();await handleRecoveryLink();await handleShopDirectLink();showMissionWelcomeOncePerRound().catch(()=>{});}
     catch(err){console.error(err);showNotice('เกิดข้อผิดพลาด: '+err.message,true);}
+    finally{document.documentElement.classList.remove('shop-link-pending');}
   }
   start();
 

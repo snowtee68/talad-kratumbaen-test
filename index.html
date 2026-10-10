@@ -2,6 +2,15 @@
 <html lang="th">
 <script src="./native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
 <head>
+<style>
+/* Shared-shop deep links: prevent displaying the homepage while the selected shop loads. */
+html.shop-link-pending body::before{content:'';position:fixed;inset:0;background:#fff;z-index:2147483645;}
+html.shop-link-pending body::after{content:attr(data-shop-welcome);text-align:center;padding:24px;box-sizing:border-box;overflow-wrap:anywhere;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#a7161b;font:600 17px system-ui,sans-serif;z-index:2147483646;}
+</style>
+<script>
+try{if(new URLSearchParams(location.search).has('shop'))document.documentElement.classList.add('shop-link-pending');}catch(_e){}
+</script>
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#b31217">
@@ -158,7 +167,7 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 .rider-stop-ready{border-left:4px solid #2e9b50!important}
 </style>
 </head>
-<body class="guest-session">
+<body class="guest-session" data-shop-welcome="ยินดีต้อนรับสู่ร้าน…">
 <header class="site-header">
   <div class="container nav header-dashboard-nav">
     <a class="brand" href="#top">
