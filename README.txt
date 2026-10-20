@@ -1,16 +1,34 @@
-V0.5.22.141 — Android direct APK download
+# Patch: services and amenities badges — R8.8.16-shop-service-badges
 
-เป้าหมาย:
-กด Download App แล้วเรียกไฟล์ app-release.apk v1.0.1 โดยตรง
-ไม่พาผู้ใช้ไปหน้า GitHub Release เพื่อกด asset ซ้ำ
+Source: talad-kratumbaen-test-main (10).zip (root website version)
 
-ไฟล์:
-- app.js
-- index.html (cache bust 0.5.22.141-r1)
+## Included files
+- app.js — connect existing service fields to public shop detail, all-shop cards and recommended cards.
+- styles.css — small red-brand responsive badges.
+- index.html — cache-bust updated app.js and styles.css; all existing content preserved.
+- sw.js — change cache name and pre-cache versions ONLY; keep service-worker logic unchanged.
 
-ไม่ต้องรัน SQL
-ไม่แตะ Supabase / Edge Function / Order / Rider / Native Push / เสียง / Deep Link
+## Behavior
+- Detail modal: show ALL selected service/amenity flags, hide entire block when none selected.
+- Shop list cards: show up to 3 selected flags, compact layout.
+- Recommended cards: show up to 2 selected flags.
+- No flags changed or saved differently. No Supabase schema/SQL changes.
+- No order, payment, Rider, Push, or permissions changes.
+- Delivery service tick is informational only; it does NOT enable KTB project delivery orders.
+- LINE MAN / Grab / ShopeeFood labels are informational; their buttons still require URL as before.
 
-หมายเหตุ:
-Chrome/Android อาจยังแสดงคำเตือนความปลอดภัยหรือถามยืนยันดาวน์โหลด APK
-ซึ่งเป็นพฤติกรรมของเบราว์เซอร์/Android และไม่ควรถูกข้ามด้วยเว็บ
+## Upload
+1. Back up the 4 original ROOT files app.js styles.css index.html sw.js in the repository.
+2. Replace ONLY these 4 files at website repository ROOT (not inside /test or /rider).
+3. Deploy as usual. Refresh website and reopen after SW update; test desktop and mobile.
+4. Open a shop with checked services and confirm details/list card and recommendation card.
+5. Open a shop without selected services and verify no empty box appears.
+6. Confirm order / rider / alerts still work unchanged (smoke test; not performed here).
+
+## Rollback
+Restore the backed-up 4 files; deployed service-worker cache name will revert accordingly.
+
+## Verification done
+- Source file references and select * details checked statically.
+- JS syntax checked with node --check; CSS and HTML file unchanged outside styles links.
+- No live production test conducted.

@@ -972,3 +972,15 @@ fieldset{border:1px solid var(--line);border-radius:14px;padding:14px}legend{fon
   object-fit:cover!important;
   object-position:center center!important;
 }
+
+
+/* R8.8.16 — public shop services and amenities; visual-only enhancement. */
+.shop-service-panel{margin:14px 0 18px;padding:13px 14px;background:#fffaf7;border:1px solid #eeddd5;border-radius:14px}
+.shop-service-panel h3{font-size:15px;line-height:1.5;margin:0 0 10px;color:#503231}
+.service-badges{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.service-badges .shop-service-pill{display:inline-flex;align-items:center;max-width:100%;padding:5px 9px;background:#fff;color:#713b32;border:1px solid #eddbd5;border-radius:999px;font-size:12px;line-height:1.4;font-weight:600;white-space:normal;overflow-wrap:anywhere}
+.shop-service-panel .detail-service-badges{margin-top:0}
+#shopGrid .shop-card-services{margin:0 0 12px}
+#shopGrid .shop-card-services .shop-service-pill,#recommendedGrid .recommended-shop-services .shop-service-pill{background:#fff7f3;font-size:11px;padding:4px 8px}
+#recommendedGrid .recommended-shop-services{margin:0 0 11px}
+@media(max-width:480px){.shop-service-panel{padding:12px}.service-badges .shop-service-pill{font-size:11px}}

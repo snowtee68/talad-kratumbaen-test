@@ -1164,11 +1164,20 @@
     return {open:isOpen,text:isOpen?`เปิดอยู่ • ปิด ${d.close} น.`:`ปิดแล้ว • ${d.open}–${d.close} น.`};
   }
 
-  function serviceBadges(s){
+  // R8.8.16: Show only services explicitly selected by the shop owner.
+  // This is descriptive information; "delivery" does NOT grant Project Rider access.
+  function serviceBadges(s,limit=Infinity){
     const items=[];
-    if(s.delivery)items.push('🚚 Delivery'); if(s.lineman)items.push('LINE MAN'); if(s.grab)items.push('Grab'); if(s.shopeefood)items.push('ShopeeFood');
-    if(s.qr_payment)items.push('QR Payment'); if(s.card_payment)items.push('รับบัตร'); if(s.parking)items.push('🅿️ ที่จอดรถ'); if(s.pet_friendly)items.push('🐶 Pet friendly'); if(s.wheelchair_accessible)items.push('♿ รถเข็น');
-    return items.slice(0,5).map(x=>`<span>${x}</span>`).join('');
+    if(s?.delivery)items.push('🚚 เดลิเวอรี');
+    if(s?.lineman)items.push('LINE MAN');
+    if(s?.grab)items.push('Grab');
+    if(s?.shopeefood)items.push('ShopeeFood');
+    if(s?.qr_payment)items.push('📱 รับ QR Payment');
+    if(s?.card_payment)items.push('💳 รับบัตร');
+    if(s?.parking)items.push('🅿️ ที่จอดรถ');
+    if(s?.pet_friendly)items.push('🐶 สัตว์เลี้ยงเข้าได้');
+    if(s?.wheelchair_accessible)items.push('♿ รถเข็นเข้าได้');
+    return items.slice(0,limit).map(x=>`<span class="shop-service-pill">${x}</span>`).join('');
   }
 
   function shopMarkerType(shop){
@@ -1708,6 +1717,7 @@
           <b>${rating.count?rating.average.toFixed(1):'ใหม่'}</b>
           <small>${rating.count?`${rating.count} รีวิว`:'ยังไม่มีรีวิว'}</small>
         </div>
+        ${serviceBadges(s,2)?`<div class="service-badges recommended-shop-services" aria-label="บริการของร้าน">${serviceBadges(s,2)}</div>`:''}
         <button type="button" class="recommended-detail-btn" data-action="details" data-shop-id="${esc(s.id)}">รายละเอียดเพิ่มเติม</button>
       </div>
     </article>`;
@@ -1924,6 +1934,7 @@
       shop.website?`<a class="detail-action" href="${esc(safeExternalUrl(shop.website))}" target="_blank" rel="noopener noreferrer">🌐 Website</a>`:'',
       shop.email?`<a class="detail-action" href="mailto:${esc(shop.email)}">✉️ Email</a>`:''
     ].filter(Boolean).join('');
+    const services=serviceBadges(shop);
     const deliveryButtons=[
       shop.lineman_url?`<a class="detail-order lineman" href="${esc(safeExternalUrl(shop.lineman_url))}" target="_blank" rel="noopener noreferrer">สั่งผ่าน LINE MAN</a>`:'',
       shop.grab_url?`<a class="detail-order grab" href="${esc(safeExternalUrl(shop.grab_url))}" target="_blank" rel="noopener noreferrer">สั่งผ่าน GrabFood</a>`:'',
@@ -1938,6 +1949,7 @@
       <p>${esc(shop.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p>
       ${shop.address?`<p class="detail-address">📍 ${esc(shop.address)}</p>`:''}
       ${shop.landmark?`<p class="detail-landmark"><b>📍 จุดสังเกต:</b> ${esc(shop.landmark)}</p>`:''}
+      ${services?`<section class="shop-service-panel" aria-label="บริการและสิ่งอำนวยความสะดวก"><h3>บริการและสิ่งอำนวยความสะดวก</h3><div class="service-badges detail-service-badges">${services}</div></section>`:''}
       ${promo?`<div class="detail-promo"><b>🔥 ${esc(promo.title)}</b><span>${esc(promo.description||'')}</span><small>⏰ ${esc(promotionTimingText(promo))}</small></div>`:''}
       <div id="shopPublicCouponBox" data-shop-coupons="${esc(shop.id)}"></div>
       ${deliveryButtons?`<div class="detail-order-grid">${deliveryButtons}</div>`:''}
@@ -2525,6 +2537,7 @@
           <small>${rating.count?`${rating.count} รีวิว`:'ยังไม่มีรีวิว'}</small>
         </div>
         <p class="compact-shop-description">${esc(s.description||'ร้านค้าในตลาดกระทุ่มแบน')}</p>
+        ${serviceBadges(s,3)?`<div class="service-badges shop-card-services" aria-label="บริการของร้าน">${serviceBadges(s,3)}</div>`:''}
         <div class="compact-shop-footer">
           <div class="open-badge ${state.open===false?'closed':''}">${state.open===true?'🟢':state.open===false?'🔴':'🕒'} ${esc(state.text)}</div>
           <button data-action="details">ดูรายละเอียด</button>
