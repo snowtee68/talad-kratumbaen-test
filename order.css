@@ -231,3 +231,9 @@
 }
 #deliveryMapPicker .delivery-map-backdrop { z-index: 0; }
 #deliveryMapPicker .delivery-map-panel { position: relative; z-index: 1; }
+
+
+/* KTB_CUSTOMER_NATIVE_PUSH_TEST_HIDE_R2 - Customer UI only; preserve Native FCM logic */
+#orderPushSettings #testOrderNativePushBtn {
+  display: none !important;
+}
