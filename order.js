@@ -620,7 +620,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       if(e.target.closest('#submitRefundBtn'))return submitRefund();
       if(e.target.closest('#enableOrderPushBtn'))return enableOrderPush();
       if(e.target.closest('#disableOrderPushBtn'))return disableOrderPush();
-      if(e.target.closest('#testOrderPushBtn'))return testOrderPush();
       if(e.target.closest('#enableSellerPushBtn'))return enableSellerPush();
       if(e.target.closest('#disableSellerPushBtn'))return disableSellerPush();
       if(e.target.closest('#testSellerPushBtn'))return testSellerPush();
@@ -1426,7 +1425,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       const sub=sync?.ok?sync.sub:null;
       if(sub){
         st.innerHTML='✅ <b>อุปกรณ์นี้พร้อมรับ Push Notification</b><br><small>สามารถปิดเว็บหรือพักหน้าจอได้ ระบบจะใช้การแจ้งเตือนของอุปกรณ์</small>';
-        if(on)on.style.display='none';if(off)off.style.display='';if(test)test.style.display='';
+        if(on)on.style.display='none';if(off)off.style.display='';if(test)test.style.display='none';
       }else{
         st.textContent=perm==='denied'?'❌ Browser ปิดสิทธิ์แจ้งเตือน กรุณาเปิดจากการตั้งค่าของเว็บไซต์':'ยังไม่ได้เปิด Push Notification บนอุปกรณ์นี้';
         if(on)on.style.display='';if(off)off.style.display='none';if(test)test.style.display='none';
@@ -1481,18 +1480,6 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       const sub=await getOrderPushSubscription();if(sub){await db.from('market_push_subscriptions').delete().eq('user_id',session.user.id).eq('endpoint',sub.endpoint);await sub.unsubscribe();}
       await refreshOrderPushUI();
     }catch(err){alert('ปิด Push Notification ไม่สำเร็จ: '+(err?.message||err))}
-    finally{if(btn){btn.disabled=false;btn.textContent=old;}}
-  }
-  async function testOrderPush(){
-    if(!session)return requireLogin();
-    const btn=document.getElementById('testOrderPushBtn'),old=btn?.textContent||'🔔 ส่งแจ้งเตือนทดสอบ';
-    if(btn){btn.disabled=true;btn.textContent='⏳ กำลังส่งทดสอบ...';}
-    try{
-      const {data,error}=await db.functions.invoke('send-order-push',{body:{event:'test_push'}});
-      if(error)throw error;
-      if(!data?.sent)throw new Error('ยังไม่พบอุปกรณ์ที่รับ Push ได้');
-      alert(`ส่ง Push ทดสอบแล้ว ${data.sent} อุปกรณ์`);
-    }catch(err){alert('ส่ง Push ทดสอบไม่สำเร็จ: '+(err?.message||err))}
     finally{if(btn){btn.disabled=false;btn.textContent=old;}}
   }
 
@@ -1769,7 +1756,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     if(!session)return requireLogin();
     // Strict role separation: buyer screen never renders seller controls.
     if(tab==='seller')return openSellerOrdersFromNav();
-    openModal(`<h2 class="mo-title">🛒 ออเดอร์ที่ฉันสั่งซื้อ</h2><div id="orderPushSettings" class="payment-card"><b>🔔 การแจ้งเตือนบนมือถือ</b><div class="mo-muted" id="orderPushStatus">กำลังตรวจสอบ...</div><div class="mo-actions"><button id="enableOrderPushBtn" class="mo-primary">เปิดการแจ้งเตือนบนมือถือ</button><button id="disableOrderPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button><button id="testOrderPushBtn" class="mo-secondary" style="display:none">🔔 ส่งแจ้งเตือนทดสอบ</button><button id="testOrderNativePushBtn" class="mo-primary" style="display:none">📲 ทดสอบ Native Push จริง</button></div></div><div id="hubContent">กำลังโหลด...</div>`,true);await refreshOrderPushUI();await renderCustomerHub(document.getElementById('hubContent'));
+    openModal(`<h2 class="mo-title">🛒 ออเดอร์ที่ฉันสั่งซื้อ</h2><div id="orderPushSettings" class="payment-card"><b>🔔 การแจ้งเตือนบนมือถือ</b><div class="mo-muted" id="orderPushStatus">กำลังตรวจสอบ...</div><div class="mo-actions"><button id="enableOrderPushBtn" class="mo-primary">เปิดการแจ้งเตือนบนมือถือ</button><button id="disableOrderPushBtn" class="mo-secondary" style="display:none">ปิดการแจ้งเตือนเครื่องนี้</button><button id="testOrderNativePushBtn" class="mo-primary" style="display:none">📲 ทดสอบ Native Push จริง</button></div></div><div id="hubContent">กำลังโหลด...</div>`,true);await refreshOrderPushUI();await renderCustomerHub(document.getElementById('hubContent'));
   }
   async function renderHubTab(tab){const box=document.getElementById('hubContent');if(!box)return;if(tab==='seller')return openSellerOrdersFromNav();return renderCustomerHub(box);}
   async function guideCustomerToGroup(groupId,message=''){
