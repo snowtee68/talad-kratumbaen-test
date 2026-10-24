@@ -754,6 +754,100 @@
       return {};
     }
   }
+  // KTB_RIDER_ORDER_ITEMS_COMPACT_V1
+  // A single authenticated RPC fetch per Rider refresh; images load only if a card is expanded.
+  function ktbRiderItemOptions(value){
+    if(value==null||value==='')return '';
+    let v=value;
+    if(typeof v==='string'){
+      try{v=JSON.parse(v)}catch(_){return v.slice(0,240)}
+    }
+    if(Array.isArray(v)) return v.map(x=>{
+      if(typeof x==='string')return x;
+      if(x&&typeof x==='object')return [x.group_name||x.group||x.label||'',x.name||x.value||x.option_name||''].filter(Boolean).join(': ')||JSON.stringify(x);
+      return String(x);
+    }).filter(Boolean).join(', ').slice(0,240);
+    if(v&&typeof v==='object')return Object.entries(v).map(([k,x])=>`${k}: ${typeof x==='object'?JSON.stringify(x):x}`).join(', ').slice(0,240);
+    return String(v).slice(0,240);
+  }
+  function ktbRiderImageUrl(value){
+    if(!value)return '';
+    try{const u=new URL(String(value),location.origin);return u.protocol==='https:'?u.href:''}catch(_){return ''}
+  }
+  function ktbRiderItemsStyles(){
+    if(document.getElementById('ktb-rider-order-items-style'))return;
+    const style=document.createElement('style');
+    style.id='ktb-rider-order-items-style';
+    style.textContent=`
+      .ktb-rider-items{margin:10px 0;border:1px solid #e1e5e9;border-radius:12px;background:#fafbfc;overflow:hidden}
+      .ktb-rider-items>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;padding:11px 12px;font-size:14px;font-weight:700;list-style:none}
+      .ktb-rider-items>summary::-webkit-details-marker{display:none}
+      .ktb-rider-items>summary:after{content:'⌄';font-size:18px;flex:none;color:#667085}
+      .ktb-rider-items[open]>summary:after{content:'⌃'}
+      .ktb-rider-items .ktb-rider-items-body{max-height:360px;overflow:auto;padding:0 10px 10px}
+      .ktb-rider-items .ktb-rider-shop{font-weight:800;font-size:13px;margin:10px 2px 5px;color:#475467}
+      .ktb-rider-items .ktb-rider-item{display:flex;gap:9px;align-items:center;min-height:50px;padding:7px 2px;border-top:1px solid #e9edf0}
+      .ktb-rider-items .ktb-rider-thumb,.ktb-rider-items .ktb-rider-placeholder{width:44px;height:44px;border-radius:8px;flex:0 0 44px;object-fit:cover;background:#eef0f2}
+      .ktb-rider-items .ktb-rider-placeholder{display:grid;place-items:center;font-size:20px}
+      .ktb-rider-items .ktb-rider-item-copy{min-width:0;flex:1;line-height:1.35;font-size:13px}
+      .ktb-rider-items .ktb-rider-item-copy small{display:block;color:#667085;margin-top:3px;overflow-wrap:anywhere}
+      .ktb-rider-items .ktb-rider-qty{white-space:nowrap;font-weight:800;font-size:13px}
+      @media(max-width:380px){.ktb-rider-items .ktb-rider-thumb,.ktb-rider-items .ktb-rider-placeholder{width:38px;height:38px;flex-basis:38px}}
+    `;
+    document.head.append(style);
+  }
+  function ktbRiderBuildItemsHtml(rows){
+    const groups=new Map();
+    for(const row of rows){
+      const key=String(row.shop_id||row.shop_name||'');
+      if(!groups.has(key))groups.set(key,{name:row.shop_name||'ร้านค้า',items:[]});
+      groups.get(key).items.push(row);
+    }
+    return [...groups.values()].map(g=>`<div class="ktb-rider-shop">🏪 ${esc(g.name)}</div>${g.items.map(row=>{
+      const src=ktbRiderImageUrl(row.image_url),alt=String(row.product_name||'สินค้า');
+      const opt=ktbRiderItemOptions(row.options_json),note=String(row.note||'').slice(0,240);
+      const img=src?`<a href="${esc(src)}" target="_blank" rel="noopener noreferrer" title="แตะเพื่อดูรูปใหญ่"><img class="ktb-rider-thumb" src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"></a>`:'<span class="ktb-rider-placeholder" aria-label="ไม่มีรูปสินค้า">📦</span>';
+      return `<div class="ktb-rider-item">${img}<div class="ktb-rider-item-copy"><b>${esc(alt)}</b>${opt?`<small>ตัวเลือก: ${esc(opt)}</small>`:''}${note?`<small>หมายเหตุ: ${esc(note)}</small>`:''}</div><span class="ktb-rider-qty">×${Math.max(0,Number(row.qty)||0)}</span></div>`;
+    }).join('')}`).join('');
+  }
+  async function ktbLoadRiderItems(jobs){
+    const ids=[...new Set((jobs||[]).map(j=>j.id).filter(Boolean))].slice(0,30);
+    if(!ids.length)return;
+    try{
+      const {data,error}=await db.rpc('ktb_rider_assigned_jobs_items',{p_job_ids:ids});
+      if(error)throw error;
+      const byJob=new Map();
+      for(const item of Array.isArray(data)?data:[]){
+        const key=String(item.job_id||'');
+        if(!byJob.has(key))byJob.set(key,[]);
+        byJob.get(key).push(item);
+      }
+      ktbRiderItemsStyles();
+      const cards=[...document.querySelectorAll('#riderJobs .job-card[data-job-id]')];
+      for(const card of cards){
+        const items=byJob.get(String(card.dataset.jobId||''))||[];
+        // Exclude manually-created Rider jobs that have no linked market order.
+        if(!items.length)continue;
+        const summaryQty=items.reduce((s,x)=>s+Math.max(0,Number(x.qty)||0),0);
+        card.querySelector('.ktb-rider-items')?.remove();
+        const details=document.createElement('details');
+        details.className='ktb-rider-items';
+        details.innerHTML=`<summary>📦 รายการสินค้า ${items.length} รายการ (${summaryQty} ชิ้น) <small>แตะเพื่อตรวจสินค้า</small></summary><div class="ktb-rider-items-body"></div>`;
+        details.addEventListener('toggle',()=>{
+          if(details.open){
+            const body=details.querySelector('.ktb-rider-items-body');
+            if(body&&!body.dataset.loaded){body.innerHTML=ktbRiderBuildItemsHtml(items);body.dataset.loaded='1'}
+          }
+        });
+        const actionArea=card.querySelector('.job-actions');
+        if(actionArea)actionArea.before(details);else card.append(details);
+      }
+    }catch(err){
+      // Never block accepting a job, navigation, Rider push, or delivery status.
+      console.warn('KTB Rider product details unavailable:',err?.message||err);
+    }
+  }
+
   const jobSelect='*, rider_job_stops(*)';
   function sortStops(j){ return [...(j.rider_job_stops||[])].sort((a,b)=>a.stop_order-b.stop_order); }
   async function loadMyJobs(){
@@ -796,6 +890,7 @@
       });
     }
     $('#riderJobs').innerHTML=mineErr?`<div class="notice">${esc(mineErr.message)}</div>`:mineRows.map(j=>jobCard(j,'rider')).join('')||'<div class="notice">ยังไม่มีงานที่กำลังทำ</div>';
+    await ktbLoadRiderItems(mineRows);
   }
 
   function riderHistoryTime(j){return j.delivery_proof_state?.completed_at||j.updated_at||j.created_at}
