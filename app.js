@@ -411,6 +411,105 @@
     return `<div class="rider-job-owned">งานของคุณ · ${esc(riderJobInboxStatusLabel(job.status))}</div>`;
   }
 
+  // KTB_MAIN_RIDER_ORDER_ITEMS_V1: Rider inside main marketplace app, not /rider/.
+  // Read-only, optional UI; never changes acceptance, delivery status or push.
+  let ktbMainRiderItemsRun=0;
+  function ktbMainRiderItemsCss(){
+    if(document.getElementById('ktb-main-rider-items-css'))return;
+    const style=document.createElement('style');
+    style.id='ktb-main-rider-items-css';
+    style.textContent=`
+      .ktb-main-rider-items{margin:10px 0;border:1px solid #dfe5ea;border-radius:12px;background:#f8fafc;overflow:hidden}
+      .ktb-main-rider-items>summary{cursor:pointer;padding:11px 12px;font-size:14px;font-weight:700;list-style-position:inside}
+      .ktb-main-rider-items>summary small{font-weight:400;color:#667085;margin-left:6px}
+      .ktb-main-rider-items-body{padding:0 10px 10px;max-height:320px;overflow-y:auto}
+      .ktb-main-rider-items-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #e5e9ed;font-size:13px}
+      .ktb-main-rider-items-img,.ktb-main-rider-items-placeholder{width:40px;height:40px;border-radius:7px;flex:0 0 40px;object-fit:cover;background:#eef2f5}
+      .ktb-main-rider-items-placeholder{display:grid;place-items:center}
+      .ktb-main-rider-items-copy{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.4}
+      .ktb-main-rider-items-copy small{display:block;color:#667085}
+      .ktb-main-rider-items-qty{font-weight:800;flex:none}
+      .ktb-main-rider-items-shop{font-size:12px;font-weight:800;color:#667085;padding:10px 0 5px}`;
+    document.head.appendChild(style);
+  }
+  function ktbMainRiderSafeImage(value){
+    if(!value)return '';
+    try{const url=new URL(String(value),location.origin);return url.protocol==='https:'?url.href:''}catch(_e){return ''}
+  }
+  function ktbMainRiderOptionText(value){
+    if(value==null||value==='')return '';
+    let x=value;
+    if(typeof x==='string'){try{x=JSON.parse(x)}catch(_e){return x.slice(0,220)}}
+    if(Array.isArray(x))return x.map(v=>typeof v==='string'?v:(v&&typeof v==='object'?([v.group_name||v.group||v.label||'',v.name||v.value||v.option_name||''].filter(Boolean).join(': ')||JSON.stringify(v)):String(v))).join(', ').slice(0,220);
+    if(x&&typeof x==='object')return Object.entries(x).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join(', ').slice(0,220);
+    return String(x).slice(0,220);
+  }
+  function ktbMainRiderItemRowsHtml(items){
+    const byShop=new Map();
+    for(const item of items){
+      const key=String(item.shop_id||item.shop_name||'');
+      if(!byShop.has(key))byShop.set(key,{name:item.shop_name||'ร้านค้า',rows:[]});
+      byShop.get(key).rows.push(item);
+    }
+    return [...byShop.values()].map(group=>`<div class="ktb-main-rider-items-shop">🏪 ${esc(group.name)}</div>${group.rows.map(item=>{
+      const product=String(item.product_name||'สินค้า'),src=ktbMainRiderSafeImage(item.image_url);
+      const picture=src?`<a href="${esc(src)}" target="_blank" rel="noopener noreferrer" title="ดูรูปสินค้า"><img class="ktb-main-rider-items-img" src="${esc(src)}" alt="${esc(product)}" loading="lazy"></a>`:'<span class="ktb-main-rider-items-placeholder">📦</span>';
+      const opts=ktbMainRiderOptionText(item.options_json),note=String(item.note||'').slice(0,220);
+      return `<div class="ktb-main-rider-items-row">${picture}<div class="ktb-main-rider-items-copy"><b>${esc(product)}</b>${opts?`<small>ตัวเลือก: ${esc(opts)}</small>`:''}${note?`<small>หมายเหตุ: ${esc(note)}</small>`:''}</div><span class="ktb-main-rider-items-qty">×${Math.max(0,Number(item.qty)||0)}</span></div>`;
+    }).join('')}`).join('');
+  }
+  async function ktbMainRiderAttachItems(jobs){
+    const run=++ktbMainRiderItemsRun;
+    const mine=(Array.isArray(jobs)?jobs:[]).filter(j=>j?.is_mine&&j?.batch_id).slice(0,30);
+    if(!mine.length)return;
+    ktbMainRiderItemsCss();
+    for(const job of mine){
+      const card=document.querySelector(`[data-rider-job-batch="${CSS.escape(String(job.batch_id))}"]`);
+      if(!card)continue;
+      const details=document.createElement('details');
+      details.className='ktb-main-rider-items';
+      details.innerHTML='<summary>📦 รายการสินค้า <small>กำลังตรวจสอบ...</small></summary>';
+      const pickup=card.querySelector('.rider-job-section');
+      if(pickup)pickup.after(details);else card.appendChild(details);
+    }
+    const ids=[...new Set(mine.map(j=>String(j.batch_id)))];
+    try{
+      const {data,error}=await db.rpc('ktb_market_rider_batch_items',{p_batch_ids:ids});
+      if(error)throw error;
+      if(run!==ktbMainRiderItemsRun)return;
+      const byBatch=new Map();
+      for(const row of Array.isArray(data)?data:[]){
+        const id=String(row.batch_id||'');
+        if(!byBatch.has(id))byBatch.set(id,[]);
+        byBatch.get(id).push(row);
+      }
+      for(const job of mine){
+        const card=document.querySelector(`[data-rider-job-batch="${CSS.escape(String(job.batch_id))}"]`);
+        const panel=card?.querySelector('.ktb-main-rider-items');
+        if(!panel)continue;
+        const list=byBatch.get(String(job.batch_id))||[];
+        if(!list.length){
+          panel.innerHTML='<summary>📦 รายการสินค้า <small>ไม่พบข้อมูลสินค้าเชื่อมกับงาน</small></summary>';
+          continue;
+        }
+        const qty=list.reduce((n,row)=>n+Math.max(0,Number(row.qty)||0),0);
+        panel.innerHTML=`<summary>📦 รายการสินค้า ${list.length} รายการ (${qty} ชิ้น) <small>แตะเพื่อตรวจสอบ</small></summary><div class="ktb-main-rider-items-body"></div>`;
+        panel.addEventListener('toggle',()=>{
+          if(!panel.open)return;
+          const body=panel.querySelector('.ktb-main-rider-items-body');
+          if(body&&!body.dataset.loaded){body.innerHTML=ktbMainRiderItemRowsHtml(list);body.dataset.loaded='1'}
+        });
+      }
+    }catch(err){
+      if(run!==ktbMainRiderItemsRun)return;
+      console.warn('Main Rider: load linked market items failed',err?.message||err);
+      for(const job of mine){
+        const panel=document.querySelector(`[data-rider-job-batch="${CSS.escape(String(job.batch_id))}"] .ktb-main-rider-items`);
+        if(panel)panel.innerHTML='<summary>📦 รายการสินค้า <small>โหลดไม่สำเร็จ กรุณาเปิดใหม่</small></summary>';
+      }
+    }
+  }
+
   function riderJobCard(job){
     const waiting=Boolean(job?.can_accept);
     const mine=Boolean(job?.is_mine);
@@ -522,6 +621,7 @@
       });
       syncRiderWaitingJobs(jobs,{notify:true});
       if(box)box.innerHTML=jobs.length?jobs.map(riderJobCard).join(''):'<div class="rider-job-empty">✅ ตอนนี้ยังไม่มีงานใหม่หรืองานที่ต้องดำเนินการ</div>';
+      void ktbMainRiderAttachItems(jobs);
       return jobs;
     }catch(err){
       if(box)box.innerHTML=`<p class="muted">โหลดงาน Rider ไม่สำเร็จ: ${esc(err?.message||err)}</p>`;
