@@ -446,18 +446,43 @@
       if(!batch)return;
 
       const isCustomer=batch.group?.customer_id===session.user.id;
-      let sellerTarget=null;
+      let sellerTarget=null,sellerAffectedOrderIds=[];
       const sellerIds=await getMySellerShopIds();
       if(sellerIds.length){
         const {data:rows}=await db.from('market_delivery_batch_orders')
           .select('order:market_orders(id,shop_id)').eq('batch_id',batchId);
-        const matched=(rows||[]).find(x=>sellerIds.includes(x.order?.shop_id));
+        const matches=(rows||[]).filter(x=>sellerIds.includes(x.order?.shop_id));
+        sellerAffectedOrderIds=matches.map(x=>String(x.order.id));
+        const activeShopId=document.getElementById('sellerShopId')?.value||'';
+        const matched=matches.find(x=>String(x.order?.shop_id)===String(activeShopId))||matches[0];
         if(matched?.order?.shop_id)sellerTarget={role:'seller',orderId:matched.order.id,shopId:matched.order.shop_id,batchId};
       }
       const relevant=isCustomer||!!sellerTarget;
       if(!relevant)return;
 
       const status=String(batch.status||'');
+      // KTB_PRODUCTION_SELLER_READY_LIVE_R3: the seller screen may be open while Rider picks up.
+      // Hide only linked orders' stale Ready buttons, then refresh seller data via the
+      // existing debounced Realtime refresh. No additional sound or push is sent.
+      const riderAlreadyPickedUp=!!batch.picked_up_at||!!batch.delivering_at||
+        !!batch.delivery_arrived_at||['picked_up','delivering','arrived','completed'].includes(status);
+      if(sellerTarget&&riderAlreadyPickedUp){
+        const affected=new Set(sellerAffectedOrderIds);
+        document.querySelectorAll('.order-card[data-order-card-id]').forEach(card=>{
+          if(!affected.has(String(card.dataset.orderCardId||'')))return;
+          card.querySelectorAll('[data-order-status="ready"]').forEach(btn=>{
+            btn.disabled=true;
+            btn.remove();
+          });
+        });
+        if(document.getElementById('sellerOrdersOnly')){
+          const activeShopId=document.getElementById('sellerShopId')?.value||'';
+          const sellerShopOfEvent=String(sellerTarget.shopId||'');
+          if(String(activeShopId)===sellerShopOfEvent){
+            scheduleRealtimeOrderRefresh({new:{id:sellerTarget.orderId}});
+          }
+        }
+      }
       const deliveryStateKey=`market_delivery_notify_${session.user.id}_${batchId}`;
       let previousDeliveryState={};
       try{previousDeliveryState=JSON.parse(localStorage.getItem(deliveryStateKey)||'{}')}catch(_e){}
