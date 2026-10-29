@@ -66,6 +66,12 @@ try{if(new URLSearchParams(location.search).has('shop'))document.documentElement
 #adminPanel .admin-view-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
 #adminPanel .admin-view-head h3{margin:0}
 #adminPanel .admin-back-home{white-space:nowrap}
+#adminPanel .admin-shop-status-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 16px}
+#adminPanel .admin-shop-status-tabs button{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:48px;padding:9px 11px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#334155;font-family:inherit;font-size:13px;font-weight:700;line-height:1.35;cursor:pointer}
+#adminPanel .admin-shop-status-tabs button.active{border-color:#b91c1c;background:#fff1f2;color:#991b1b;box-shadow:0 0 0 2px rgba(185,28,28,.08)}
+#adminPanel .admin-shop-status-tabs [data-admin-shop-tab-count]{display:inline-grid;place-items:center;min-width:24px;padding:3px 6px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:12px}
+#adminPanel .admin-shop-status-tabs button.active [data-admin-shop-tab-count]{background:#fecdd3;color:#881337}
+@media(max-width:700px){#adminPanel .admin-shop-status-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #adminPanel [data-admin-view].hidden{display:none!important}
 #adminPanel .admin-home-note{padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fafafa}
 #adminPanel .admin-coupon-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
@@ -543,7 +549,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=ktb-main-rider-products-r3-20261025"></script>
+<script src="app.js?v=ktb-production-shop-management-r1-20261029"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
