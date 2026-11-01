@@ -672,7 +672,28 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
       if(e.target.closest('#customerLoadMoreOrders')){customerOrderPage++;return renderHubTab('customer');}
       if(e.target.closest('#sellerLoadMoreOrders')){sellerOrderPage++;const sid=document.getElementById('sellerShopId')?.value;return sid?(document.getElementById('sellerOrdersOnly')?openSellerOrders(sid):openSellerShop(sid)):null;}
     });
-    document.addEventListener('input',e=>{const el=e.target.closest('[data-draft-field]');if(el)draftFieldChanged(el);const q=e.target.closest('#orderSearchInput');if(q){orderSearchTerm=q.value||'';customerOrderPage=1;sellerOrderPage=1;clearTimeout(window.__orderSearchTimer);window.__orderSearchTimer=setTimeout(()=>{const sid=document.getElementById('sellerShopId')?.value;if(sid)(document.getElementById('sellerOrdersOnly')?openSellerOrders(sid):openSellerShop(sid));else renderHubTab('customer');},250);}});
+    // KTB_ORDER_SEARCH_ENTER_ONLY_20261101:
+    // Do not replace an order list while the user is still typing.
+    // One delegated Enter handler serves both customer and seller order screens.
+    document.addEventListener('input',e=>{
+      const el=e.target.closest('[data-draft-field]');
+      if(el)draftFieldChanged(el);
+    });
+    document.addEventListener('keydown',e=>{
+      const q=e.target.closest?.('#orderSearchInput');
+      if(!q||e.key!=='Enter'||e.isComposing||e.keyCode===229)return;
+      e.preventDefault();
+      orderSearchTerm=String(q.value||'').trim();
+      customerOrderPage=1;
+      sellerOrderPage=1;
+      const sid=document.getElementById('sellerShopId')?.value;
+      if(sid){
+        if(document.getElementById('sellerOrdersOnly'))openSellerOrders(sid);
+        else openSellerShop(sid);
+      }else{
+        renderHubTab('customer');
+      }
+    });
     document.addEventListener('change',e=>{if(e.target.id==='coProvince')return provinceChanged();if(e.target.id==='coDistrict')return districtChanged();if(e.target.id==='coSubdistrict')return subdistrictChanged();const el=e.target.closest('[data-draft-field]');if(el)draftFieldChanged(el);if(e.target.closest('[data-option-value]'))updateCustomProductTotal();const df=e.target.closest('#orderDateFilter');if(df){orderDateFilter=df.value;customerOrderPage=1;sellerOrderPage=1;const sid=document.getElementById('sellerShopId')?.value;if(sid)(document.getElementById('sellerOrdersOnly')?openSellerOrders(sid):openSellerShop(sid));else renderHubTab('customer');}});
   }
   function openModal(html,wide=false){
@@ -1897,7 +1918,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   }
   function orderSearchMatchesGroup(g){
     const q=String(orderSearchTerm||'').trim().toLowerCase();if(!q)return true;
-    const text=[g.id,...(g.orders||[]).flatMap(o=>[o.id,o.shop?.name,o.shop?.phone,o.rejection_reason])].filter(Boolean).join(' ').toLowerCase();
+    const text=[g.id,sharedOrderRef(g.id),...(g.orders||[]).flatMap(o=>[o.id,sharedOrderRef(o.id),o.shop?.name,o.shop?.phone,o.rejection_reason])].filter(Boolean).join(' ').toLowerCase();
     return text.includes(q);
   }
   function orderTabsToolbar(type,buckets){
@@ -1909,7 +1930,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     const active=isSeller?sellerOrderTab:customerOrderTab,attr=isSeller?'data-seller-order-tab':'data-customer-order-tab';
     return `<div class="order-tabs-sticky" data-order-ui-version="${ORDER_UI_VERSION}">
       <div class="order-tab-strip">${tabs.map(([k,l])=>`<button type="button" ${attr}="${k}" class="${active===k?'active':''}"><span class="order-tab-label">${l}</span><span class="order-tab-count">${buckets[k]?.length||0}</span></button>`).join('')}</div>
-      <div class="order-filter-row"><input id="orderSearchInput" value="${esc(orderSearchTerm)}" placeholder="ค้นหา Order / ชื่อ / เบอร์"><select id="orderDateFilter"><option value="today" ${orderDateFilter==='today'?'selected':''}>วันนี้</option><option value="yesterday" ${orderDateFilter==='yesterday'?'selected':''}>เมื่อวาน</option><option value="7d" ${orderDateFilter==='7d'?'selected':''}>7 วัน</option><option value="all" ${orderDateFilter==='all'?'selected':''}>ทั้งหมด</option></select></div>
+      <div class="order-filter-row"><input id="orderSearchInput" type="search" enterkeyhint="search" autocomplete="off" value="${esc(orderSearchTerm)}" placeholder="พิมพ์แล้วกด Enter เพื่อค้นหา" aria-label="ค้นหาเลขออเดอร์ ชื่อ หรือเบอร์โทร กด Enter เพื่อค้นหา"><select id="orderDateFilter"><option value="today" ${orderDateFilter==='today'?'selected':''}>วันนี้</option><option value="yesterday" ${orderDateFilter==='yesterday'?'selected':''}>เมื่อวาน</option><option value="7d" ${orderDateFilter==='7d'?'selected':''}>7 วัน</option><option value="all" ${orderDateFilter==='all'?'selected':''}>ทั้งหมด</option></select></div>
       <div class="mo-muted order-ui-version">UI v${ORDER_UI_VERSION}</div>
     </div>`;
   }
@@ -2110,7 +2131,9 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
   }
   function sellerOrderSearchMatches(o){
     const q=String(orderSearchTerm||'').trim().toLowerCase();if(!q)return true;
-    const text=[o.id,o.group?.customer_name,o.group?.customer_phone,o.rejection_reason].filter(Boolean).join(' ').toLowerCase();
+    // Include the displayed group/order reference, not only the internal shop-order UUID.
+    const groupId=o.group?.id||o.group_id;
+    const text=[groupId,sharedOrderRef(groupId),o.id,sharedOrderRef(o.id),o.group?.customer_name,o.group?.customer_phone,o.rejection_reason].filter(Boolean).join(' ').toLowerCase();
     return text.includes(q);
   }
   function seenOrderKey(){return `market_seen_orders_${session?.user?.id||'guest'}`}
