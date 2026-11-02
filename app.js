@@ -530,9 +530,9 @@
       </div>`;
     }).join(''):'<div class="muted">ไม่พบรายละเอียดร้าน</div>';
 
-    const customer=job?.customer_name||'-',phone=job?.customer_phone||'',address=job?.delivery_address||'-';
-    const deliveryMap=riderMapLink(job?.delivery_lat,job?.delivery_lng,'จุดส่งลูกค้า');
-    const deliveryCoord=riderCoordinateText(job?.delivery_lat,job?.delivery_lng);
+    const customer=mine?(job?.customer_name||'-'):(job?.customer_name_preview||'-'),phone=mine?(job?.customer_phone||''):'',address=mine?(job?.delivery_address||'-'):(job?.delivery_area||'ไม่ระบุพื้นที่');
+    const deliveryMap=mine?riderMapLink(job?.delivery_lat,job?.delivery_lng,'จุดส่งลูกค้า'):'';
+    const deliveryCoord=mine?riderCoordinateText(job?.delivery_lat,job?.delivery_lng):'แสดงหลังรับงาน';
     const fee=Number(job?.delivery_fee||0),km=Number(job?.distance_km||0);
     // Show the same group reference as the shop; never present a batch ID as an order ID.
     // The internal batch_id is intentionally unchanged for all Rider actions.
@@ -545,7 +545,7 @@
         <div><b>${esc(displayRef)}</b><small>${esc(riderJobInboxStatusLabel(job?.status))}</small></div>
         <div class="rider-job-price">${fee?'รายได้ '+fee.toLocaleString('th-TH')+' บาท':'รอข้อมูลค่าจัดส่ง'}</div>
       </div>
-      <div class="rider-job-meta">${km?`📏 ${km.toFixed(1)} กม.`:''}${shops.length?` · 🏪 ${shops.length} จุดรับ`:''}</div>
+      <div class="rider-job-meta">${km?`📏 ระยะทางที่ระบบบันทึก ${km.toFixed(1)} กม.`:'📏 ระยะทาง: ยังไม่มีข้อมูล'}${shops.length?` · 🏪 ${shops.length} จุดรับ`:''}</div>
 
       <div class="rider-job-section"><strong>จุดรับสินค้า</strong>${shopHtml}</div>
 
@@ -554,7 +554,7 @@
         <div>👤 ${esc(customer)}</div>
         ${phone?`<a href="tel:${esc(phone)}">☎ ${esc(phone)}</a>`:''}
         <div>📍 ${esc(address)}</div>
-        <small>📌 พิกัด: ${esc(deliveryCoord)}</small>
+        ${mine?`<small>📌 พิกัด: ${esc(deliveryCoord)}</small>`:''}
         <div class="rider-contact-actions">
           ${phone?`<a class="rider-mini-btn" href="tel:${esc(phone)}">☎ โทรลูกค้า</a>`:''}
           ${deliveryMap?`<a class="rider-mini-btn map" href="${esc(deliveryMap)}" target="_blank" rel="noopener">🧭 นำทางไปจุดส่ง</a>`:''}
@@ -596,14 +596,9 @@
     }
     if(box&&!quiet)box.innerHTML='<p class="muted">กำลังโหลดงาน Rider...</p>';
     try{
-      // Add group_id solely for consistent display of the shop's order reference.
-      // If the additive read-only RPC has not been deployed (or fails), keep the
-      // existing Rider inbox fully operational through its original RPC.
-      let {data,error}=await db.rpc('market_my_rider_job_inbox_ref_v1');
-      if(error){
-        console.warn('Rider order reference unavailable; using the existing inbox:',error.message||error);
-        ({data,error}=await db.rpc('market_my_rider_job_inbox'));
-      }
+      // SECURITY: Always use Phase 2 privacy-filtered RPC. Never fall back to a legacy RPC
+      // that may return full customer contact details before the rider accepts a job.
+      let {data,error}=await db.rpc('market_my_rider_job_inbox');
       if(error)throw error;
       const hydrated=await fillRiderInboxFareFallback(Array.isArray(data)?data:(data?.jobs||[]));
       const seenBatchIds=new Set();
