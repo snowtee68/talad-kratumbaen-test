@@ -2592,7 +2592,7 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     alert('✅ ยืนยันได้รับสินค้าแล้ว ขอบคุณครับ');guideCustomerToGroup(data?.group_id||'','จัดส่งเสร็จสมบูรณ์ · รายการถูกเก็บไว้ในประวัติ');
   }
   async function customerConfirmRefund(orderId){
-    if(!confirm('ยืนยันว่าคุณได้รับเงินคืนจากร้านครบแล้ว?'))return;const {data,error}=await db.rpc('market_customer_confirm_refund',{p_order_id:orderId});if(error)return alert(error.message);alert('ยืนยันได้รับเงินคืนแล้ว ขอบคุณครับ');openAccountHub('customer');
+    if(!confirm('โปรดตรวจสอบยอดเงินในบัญชีหรือ PromptPay ของคุณก่อนยืนยัน\n\nกดตกลงเฉพาะเมื่อได้รับเงินคืนครบถ้วนแล้วเท่านั้น\nเมื่อยืนยัน ระบบจะปิดรายการคืนเงินและจัดเก็บข้อมูลช่องทางรับเงินคืนอย่างปลอดภัย'))return;const {data,error}=await db.rpc('market_customer_confirm_refund',{p_order_id:orderId});if(error)return alert(error.message);alert('ยืนยันได้รับเงินคืนแล้ว ขอบคุณครับ');openAccountHub('customer');
   }
 
   function haversine(a,b){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
