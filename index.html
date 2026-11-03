@@ -172,6 +172,10 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 .rider-shop-preparing{display:inline-block;margin:5px 0 6px;padding:5px 8px;border-radius:999px;background:#fff5db;color:#7a5700;font-size:12px;font-weight:800}
 .rider-stop-ready{border-left:4px solid #2e9b50!important}
 </style>
+<style id="ktbDeliveryCatalogStyles">
+.ktb-delivery-entry{padding:14px 16px 4px;text-align:center}.ktb-delivery-entry-button{background:#efaa29;color:#241805;border:0;border-radius:17px;padding:15px 26px;box-shadow:0 5px 17px #aa6c2350;font-weight:900;font-size:clamp(18px,4vw,24px);cursor:pointer;max-width:100%;width:min(510px,100%)}.ktb-delivery-entry-button small{display:block;font-size:12px;margin-top:4px;font-weight:600}.ktb-delivery-catalog{padding:20px 0 85px;min-height:60vh}.ktb-delivery-head{text-align:center;margin-bottom:18px}.ktb-delivery-head h2{margin:10px 0 4px}.ktb-delivery-head p{color:#666}.ktb-delivery-back{display:block;border:1px solid #ddd;border-radius:10px;background:white;padding:10px 16px;cursor:pointer}.ktb-delivery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ktb-delivery-card{background:#fff;border:1px solid #e8e0d7;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-width:0;box-shadow:0 3px 12px #0000000b}.ktb-delivery-thumb{width:100%;aspect-ratio:5/3;object-fit:cover;background:#f3eee8}.ktb-delivery-fallback{aspect-ratio:5/3;display:grid;place-items:center;background:#f3eee8;font-size:30px}.ktb-delivery-card-content{padding:10px;display:flex;flex-direction:column;flex:1;gap:9px}.ktb-delivery-name{font-size:14px;line-height:1.4;font-weight:800;overflow-wrap:anywhere;flex:1}.ktb-delivery-buy{background:#9e1720;color:#fff;border:0;border-radius:10px;padding:11px 8px;font:800 14px inherit;cursor:pointer;min-height:43px}.ktb-delivery-pages{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:22px}.ktb-delivery-pages button{border:1px solid #ddd;background:#fff;padding:9px 13px;border-radius:10px;cursor:pointer}.ktb-delivery-pages button[aria-current="page"]{background:#9e1720;color:#fff}.ktb-delivery-pages button:disabled{opacity:.4;cursor:default}body.ktb-delivery-mode #top > :not(#ktbDeliveryCatalog){display:none!important}body.ktb-delivery-mode #ktbDeliveryCatalog{display:block!important}body.ktb-delivery-mode .below-banner-actions,body.ktb-delivery-mode .market-photo-banner{display:none!important}
+@media(min-width:760px){.ktb-delivery-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.ktb-delivery-card-content{padding:14px}.ktb-delivery-name{font-size:16px}}
+</style>
 </head>
 <body class="guest-session" data-shop-welcome="ยินดีต้อนรับสู่ร้าน…">
 <header class="site-header">
@@ -208,6 +212,8 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
   <img src="assets/krathumbaen-market-banner.jpg?v=0.5.22.147-R8.8.2-home-cover-chibi" alt="กระทุ่มแบนไปด้วยกัน ค้นหาร้านง่าย ร้านรับรายได้เต็ม ๆ" loading="eager" decoding="async">
 </section>
 
+<div class="container ktb-delivery-entry"><button type="button" id="ktbOpenDeliveryCatalog" class="ktb-delivery-entry-button">🛵 สั่งเลย! ส่งถึงบ้าน <small>เลือกเฉพาะร้านที่กำลังเปิดรับออเดอร์</small></button></div>
+<section id="ktbDeliveryCatalog" class="ktb-delivery-catalog" hidden aria-label="ร้านที่เปิดรับ Delivery ตอนนี้"><div class="container"><div class="ktb-delivery-head"><button id="ktbDeliveryBack" type="button" class="ktb-delivery-back">← กลับหน้าหลัก</button><h2>🛵 สั่งเลย! ส่งถึงบ้าน</h2><p>แสดงเฉพาะร้านที่กำลังเปิดรับออเดอร์ Delivery</p></div><p id="ktbDeliveryMessage" role="status"></p><div id="ktbDeliveryGrid" class="ktb-delivery-grid"></div><nav id="ktbDeliveryPages" class="ktb-delivery-pages" aria-label="หน้าร้าน Delivery"></nav></div></section>
 <section class="home-discovery" aria-label="ค้นหาร้านและหมวดหมู่">
   <div class="container">
     <div class="home-search-card">
@@ -567,6 +573,7 @@ if ('serviceWorker' in navigator) {
 </nav>
 
 <script src="order.js?v=0.5.22.147-R8.2-realtime-safe-phase1-enter-20261101"></script>
+<script src="delivery-catalog.js?v=1.0.0"></script>
 
 
 <script>
