@@ -2005,9 +2005,28 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     markSellerOrdersViewed(shopId);
     const [{data:shop},{data:orders,error}]=await Promise.all([
       db.from('market_shops').select('id,name,owner_id,status').eq('id',shopId).maybeSingle(),
-      db.from('market_orders').select('id,subtotal,status,payment_ref,payment_slip_path,payment_submitted_at,response_due_at,paid_at,customer_cancel_reason,customer_cancelled_at,rejection_reason,shop_response_due_at,shop_accepted_at,shop_viewed_at,pickup_completed_at,revision_note,revision_subtotal,revision_requested_at,revision_confirmed_at,refund_required,refund_status,refund_amount,refund_ref,refund_slip_path,refund_submitted_at,refund_confirmed_at,refund_destination_type,refund_destination_promptpay_type,refund_destination_value,refund_destination_bank,refund_destination_name,refund_destination_submitted_at,created_at,customer_id,group:market_delivery_groups(id,customer_name,customer_phone,delivery_address,fulfillment_method,pickup_requested_at,status,batches:market_delivery_batches(id,status,rider_job_id,rider_name,rider_phone,delivery_fee,distance_km,accepted_at,pickup_started_at,picked_up_at,delivering_at,delivery_arrived_at,auto_confirm_due_at,auto_confirmed_at,proof_path,proof_uploaded_at,customer_confirmed_at,delivery_issue_status,delivery_issue_note,delivery_issue_at,proof_deleted_at,completed_at,batch_orders:market_delivery_batch_orders(order_id))),items:market_order_items(product_name,unit_price,qty,options_json,note)').eq('shop_id',shopId).order('created_at',{ascending:false}).limit(50)
+      db.from('market_orders').select('id,subtotal,status,payment_ref,payment_slip_path,payment_submitted_at,response_due_at,paid_at,customer_cancel_reason,customer_cancelled_at,rejection_reason,shop_response_due_at,shop_accepted_at,shop_viewed_at,pickup_completed_at,revision_note,revision_subtotal,revision_requested_at,revision_confirmed_at,refund_required,refund_status,refund_amount,refund_ref,refund_slip_path,refund_submitted_at,refund_confirmed_at,refund_destination_type,refund_destination_promptpay_type,refund_destination_value,refund_destination_bank,refund_destination_name,refund_destination_submitted_at,created_at,customer_id,group_id,items:market_order_items(product_name,unit_price,qty,options_json,note)').eq('shop_id',shopId).order('created_at',{ascending:false}).limit(50)
     ]);
     if(error)return alert(error.message);
+    // Server-side redacted seller details: never fetch private group fields directly.
+    // Fail closed: do not render seller order details if this RPC is not available.
+    if((orders||[]).length){
+      const {data:filteredDetails,error:privacyError}=await db.rpc('ktb_seller_order_safe_details',{
+        p_order_ids:orders.map(o=>o.id)
+      });
+      if(privacyError){
+        console.error('seller privacy RPC',privacyError);
+        return alert('ไม่สามารถโหลดข้อมูลออเดอร์อย่างปลอดภัยได้ กรุณาติดต่อผู้ดูแลระบบ');
+      }
+      const safeById=new Map((Array.isArray(filteredDetails)?filteredDetails:[]).map(x=>[String(x.order_id),x.group]));
+      for(const o of orders){
+        if(!safeById.has(String(o.id))){
+          console.warn('missing authorized seller order',o.id);
+          return alert('ไม่สามารถตรวจสิทธิ์ข้อมูลออเดอร์ได้');
+        }
+        o.group=safeById.get(String(o.id));
+      }
+    }
 
     try{
       const unseenIds=(orders||[]).filter(o=>!o.shop_viewed_at&&!['cancelled','completed'].includes(o.status)).map(o=>o.id);
@@ -2565,8 +2584,8 @@ if(e.target.closest('#showDeliveryFareInfoBtn'))return showDeliveryFareInfo(fals
     const {error}=await db.rpc('market_customer_set_refund_destination',{p_order_id:orderId,p_type:type,p_promptpay_type:ppType,p_value:value,p_bank:bank,p_name:name});if(error)return alert(error.message);sendOrderPush('refund_destination',{order_id:orderId});alert('บันทึกช่องทางรับเงินคืนแล้ว');window.__refundDestinationDraft=null;openAccountHub('customer');
   }
   async function openRefundModal(orderId){
-    const {data:o,error}=await db.from('market_orders').select('id,subtotal,refund_required,refund_status,refund_amount,refund_destination_type,refund_destination_promptpay_type,refund_destination_value,refund_destination_bank,refund_destination_name,refund_destination_submitted_at,group:market_delivery_groups(customer_name,customer_phone)').eq('id',orderId).maybeSingle();if(error||!o)return alert(error?.message||'ไม่พบออเดอร์');if(!o.refund_required)return alert('ออเดอร์นี้ไม่ต้องคืนเงิน');if((o.refund_status||'pending')==='completed')return alert('ลูกค้ายืนยันได้รับเงินคืนแล้ว');if(!o.refund_destination_submitted_at)return alert('ลูกค้ายังไม่ได้ระบุช่องทางรับเงินคืน กรุณารอก่อนโอน');
-    openModal(`<input id="refundOrderId" type="hidden" value="${esc(orderId)}"><h2 class="mo-title">💸 แจ้งคืนเงินลูกค้า</h2><div class="warning-banner">ยอดที่ต้องคืน <b>${money(o.refund_amount||o.subtotal)} บาท</b><br>ผู้รับ: ${esc(o.group?.customer_name||'ลูกค้า')}<br><b>${esc(refundDestinationLabel(o,false))}</b><br><small>กรุณาตรวจชื่อและหมายเลขก่อนโอน</small></div><div class="mo-form"><label>เลขอ้างอิงการคืนเงิน (ถ้ามี)<input id="refundRef" placeholder="เช่น 483921"></label><label>แนบสลิปคืนเงิน *<input id="refundSlip" type="file" accept="image/*" required></label></div><div class="mo-actions"><button id="submitRefundBtn" class="mo-primary">ส่งหลักฐานคืนเงินให้ลูกค้า</button></div>`);
+    const {data:o,error}=await db.from('market_orders').select('id,subtotal,refund_required,refund_status,refund_amount,refund_destination_type,refund_destination_promptpay_type,refund_destination_value,refund_destination_bank,refund_destination_name,refund_destination_submitted_at,group_id').eq('id',orderId).maybeSingle();if(error||!o)return alert(error?.message||'ไม่พบออเดอร์');if(!o.refund_required)return alert('ออเดอร์นี้ไม่ต้องคืนเงิน');if((o.refund_status||'pending')==='completed')return alert('ลูกค้ายืนยันได้รับเงินคืนแล้ว');if(!o.refund_destination_submitted_at)return alert('ลูกค้ายังไม่ได้ระบุช่องทางรับเงินคืน กรุณารอก่อนโอน');
+    openModal(`<input id="refundOrderId" type="hidden" value="${esc(orderId)}"><h2 class="mo-title">💸 แจ้งคืนเงินลูกค้า</h2><div class="warning-banner">ยอดที่ต้องคืน <b>${money(o.refund_amount||o.subtotal)} บาท</b><br>ผู้รับ: ข้อมูลส่วนตัวจำกัดตามสิทธิ์<br><b>${esc(refundDestinationLabel(o,false))}</b><br><small>กรุณาตรวจชื่อและหมายเลขก่อนโอน</small></div><div class="mo-form"><label>เลขอ้างอิงการคืนเงิน (ถ้ามี)<input id="refundRef" placeholder="เช่น 483921"></label><label>แนบสลิปคืนเงิน *<input id="refundSlip" type="file" accept="image/*" required></label></div><div class="mo-actions"><button id="submitRefundBtn" class="mo-primary">ส่งหลักฐานคืนเงินให้ลูกค้า</button></div>`);
   }
   async function submitRefund(){
     if(!session)return requireLogin();const orderId=document.getElementById('refundOrderId')?.value,ref=document.getElementById('refundRef')?.value.trim(),file=document.getElementById('refundSlip')?.files?.[0];if(!orderId||!file)return alert('กรุณาแนบสลิปคืนเงิน');const btn=document.getElementById('submitRefundBtn');btn.disabled=true;btn.textContent='กำลังส่ง...';
