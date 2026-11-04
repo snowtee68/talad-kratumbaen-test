@@ -1951,7 +1951,7 @@
     {id:'explorer',icon:'🔍',title:'นักสำรวจตลาด',detail:'เปิดดูรายละเอียดร้านไม่ซ้ำกัน 5 ร้าน',goal:5},
     {id:'favorite',icon:'❤️',title:'ร้านที่ถูกใจ',detail:'เพิ่มร้านชื่นชอบ 3 ร้าน',goal:3},
     {id:'review',icon:'⭐',title:'เสียงจากลูกค้า',detail:'รีวิวร้านค้า 1 ร้าน',goal:1},
-    {id:'buyer',icon:'🛍️',title:'อุดหนุนร้านในชุมชน',detail:'มีออเดอร์สำเร็จ 1 ออเดอร์',goal:1}
+    {id:'buyer',icon:'🛍️',title:'อุดหนุนร้านในชุมชน',detail:'มีออเดอร์สำเร็จ 5 ออเดอร์',goal:5}
   ];
   let missionProgressCache=null;
   async function recordMissionShopView(shopId){
