@@ -4351,8 +4351,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="install-choice-section">
           <h3>🤖 สำหรับ Android</h3>
           <p>แนะนำให้ใช้แอป Android เพื่อรับการแจ้งเตือนออเดอร์และงาน Rider ได้เต็มรูปแบบ</p>
-          <a class="btn primary" href="./downloads/app-release.apk">⬇️ ดาวน์โหลดแอป Android</a>
-          <p class="install-note"><strong>หลังดาวน์โหลดเสร็จ</strong> ให้เปิดรายการดาวน์โหลด แล้วกดไฟล์ <strong>app-release.apk</strong> เพื่อเริ่มติดตั้งแอป<br>หาก Android แจ้งเตือนเรื่องความปลอดภัย ให้อนุญาต “ติดตั้งแอปที่ไม่รู้จัก” เพื่อดำเนินการต่อ<br><small>เวอร์ชัน v1.0</small></p>
+          <a class="btn primary" href="https://play.google.com/store/apps/details?id=com.krathumbaen.together&amp;pcampaignid=web_share" target="_blank" rel="noopener noreferrer">▶️ ติดตั้งผ่าน Google Play</a>
+          <p class="install-note">กดปุ่มด้านบนเพื่อเปิด Google Play Store แล้วเลือก <strong>ติดตั้ง</strong> หรือ <strong>อัปเดต</strong> หากมีแอปอยู่แล้ว</p>
           ${androidExtra}
         </div>
 
