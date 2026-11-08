@@ -982,6 +982,63 @@
     }
   }
 
+  // Admin-only Sales Report. Separate from legacy visitor analytics.
+  let adminSalesPeriod='7d';
+  let adminSalesLoading=false;
+  function ensureAdminSalesReportUI(){
+    if(profile?.role!=='admin'||$('adminSalesReport'))return;
+    const host=document.querySelector('#adminPanel .analytics-panel');
+    if(!host)return;
+    const section=document.createElement('section');
+    section.id='adminSalesReport';
+    section.className='ktb-sales-section';
+    section.innerHTML=`<div class="ktb-sales-head"><div><h3>🧾 ยอดขายและออเดอร์รวมทุกร้าน</h3><p class="muted">ข้อมูลคำสั่งซื้อผ่านโครงการโดยตรง • ไม่รวมยอดขายหน้าร้านหรือแพลตฟอร์มอื่น • ยอดขายไม่รวมค่าจัดส่ง</p></div><button type="button" class="secondary" id="adminSalesRefresh">↻ อัปเดตยอด</button></div>
+      <div class="ktb-sales-filters" aria-label="ช่วงเวลารายงานยอดขาย">
+        <button type="button" data-sales-period="today">วันนี้</button><button type="button" data-sales-period="7d" class="active">7 วัน</button><button type="button" data-sales-period="30d">30 วัน</button><button type="button" data-sales-period="all">ทั้งหมด</button>
+      </div>
+      <p class="muted ktb-sales-note">นับตามวันที่สร้างออเดอร์ (เวลาไทย) • หนึ่งร้านเท่ากับหนึ่งออเดอร์ • ออเดอร์สำเร็จไม่นับรายการคืนเงินสำเร็จ</p>
+      <div id="adminSalesStatus" class="muted" role="status" aria-live="polite">เลือกช่วงเวลาเพื่อโหลดรายงาน</div>
+      <div id="adminSalesMetrics" class="ktb-sales-metrics"></div>
+      <div class="ktb-sales-table-head"><h4>ยอดขายแยกตามร้านค้า</h4><small class="muted">เรียงยอดขายมากไปน้อย</small></div>
+      <div class="ktb-sales-table-wrap"><table class="ktb-sales-table"><thead><tr><th scope="col">ร้านค้า</th><th scope="col">ออเดอร์ทั้งหมด</th><th scope="col">สำเร็จ</th><th scope="col">ยกเลิก</th><th scope="col">กำลังดำเนินการ</th><th scope="col">ยอดขายสำเร็จ</th></tr></thead><tbody id="adminSalesShopRows"><tr><td colspan="6">รอโหลดข้อมูล</td></tr></tbody></table></div>`;
+    host.appendChild(section);
+    if(!$('ktbSalesStyle')){
+      const style=document.createElement('style');style.id='ktbSalesStyle';
+      style.textContent=`#adminPanel .ktb-sales-section{margin-top:26px;border:1px solid #dbe3ed;border-radius:17px;padding:18px;background:#fff;box-shadow:0 4px 15px rgba(15,23,42,.04)}#adminPanel .ktb-sales-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}#adminPanel .ktb-sales-head h3{margin:0 0 6px}#adminPanel .ktb-sales-head p{margin:0}#adminPanel .ktb-sales-filters{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 8px}#adminPanel .ktb-sales-filters button{padding:8px 13px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer;font:inherit}#adminPanel .ktb-sales-filters button.active{border-color:#1e3a8a;color:#1e3a8a;background:#eff6ff;font-weight:700}#adminPanel .ktb-sales-note{font-size:12px;margin:0 0 10px}#adminPanel .ktb-sales-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:13px 0 18px}#adminPanel .ktb-sales-metric{padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}#adminPanel .ktb-sales-metric small{display:block;color:#64748b;margin-bottom:8px}#adminPanel .ktb-sales-metric strong{font-size:21px;line-height:1.2;overflow-wrap:anywhere}#adminPanel .ktb-sales-table-head{display:flex;justify-content:space-between;align-items:center;gap:10px}#adminPanel .ktb-sales-table-head h4{margin:0 0 10px}#adminPanel .ktb-sales-table-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:11px}#adminPanel .ktb-sales-table{width:100%;border-collapse:collapse;min-width:720px;font-size:13px}#adminPanel .ktb-sales-table th,#adminPanel .ktb-sales-table td{padding:11px 10px;border-bottom:1px solid #edf2f7;text-align:right;white-space:nowrap}#adminPanel .ktb-sales-table th:first-child,#adminPanel .ktb-sales-table td:first-child{text-align:left;white-space:normal;min-width:150px}#adminPanel .ktb-sales-table th{background:#f8fafc;color:#475569;font-weight:700}#adminPanel .ktb-sales-table tr:last-child td{border-bottom:0}@media(max-width:700px){#adminPanel .ktb-sales-section{padding:12px}#adminPanel .ktb-sales-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#adminPanel .ktb-sales-metric strong{font-size:19px}}`;
+      document.head.appendChild(style);
+    }
+    section.querySelectorAll('[data-sales-period]').forEach(btn=>btn.addEventListener('click',()=>loadAdminSalesReport(btn.dataset.salesPeriod)));
+    $('adminSalesRefresh')?.addEventListener('click',()=>loadAdminSalesReport(adminSalesPeriod));
+  }
+  async function loadAdminSalesReport(period=adminSalesPeriod){
+    if(profile?.role!=='admin'||!db||adminSalesLoading)return;
+    ensureAdminSalesReportUI();
+    const allowed=new Set(['today','7d','30d','all']);
+    adminSalesPeriod=allowed.has(period)?period:'7d';
+    const status=$('adminSalesStatus'),metrics=$('adminSalesMetrics'),body=$('adminSalesShopRows');
+    if(!status||!metrics||!body)return;
+    document.querySelectorAll('#adminSalesReport [data-sales-period]').forEach(btn=>btn.classList.toggle('active',btn.dataset.salesPeriod===adminSalesPeriod));
+    adminSalesLoading=true;
+    status.textContent='กำลังโหลดข้อมูลยอดขาย...';
+    const refresh=$('adminSalesRefresh');if(refresh)refresh.disabled=true;
+    const number=v=>Number(v||0).toLocaleString('th-TH');
+    const baht=v=>'฿'+Number(v||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+    try{
+      const {data,error}=await db.rpc('market_admin_sales_report_v1',{p_period:adminSalesPeriod});
+      if(error)throw error;
+      const report=data&&typeof data==='object'?data:{};
+      const s=report.summary||{};
+      const cells=[['ยอดขายสำเร็จ',baht(s.sales_total)],['ออเดอร์ทั้งหมด',number(s.total_orders)],['ออเดอร์สำเร็จ',number(s.completed_orders)],['ร้านที่มียอดขาย',number(s.shops_with_sales)]];
+      metrics.innerHTML=cells.map(([label,value])=>`<div class="ktb-sales-metric"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('');
+      const rows=Array.isArray(report.shops)?report.shops:[];
+      body.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.shop_name||'ไม่ระบุชื่อร้าน')}</td><td>${number(r.total_orders)}</td><td>${number(r.completed_orders)}</td><td>${number(r.cancelled_orders)}</td><td>${number(r.in_progress_orders)}</td><td><b>${baht(r.sales_total)}</b></td></tr>`).join(''):'<tr><td colspan="6">ยังไม่มีข้อมูลร้านค้า</td></tr>';
+      status.textContent=`${({today:'วันนี้', '7d':'7 วันล่าสุด','30d':'30 วันล่าสุด',all:'ตั้งแต่เริ่มโครงการ'})[adminSalesPeriod]} · ${number(s.cancelled_orders)} ออเดอร์ยกเลิก · ${number(s.refunded_orders)} ออเดอร์คืนเงินสำเร็จ · ${number(s.in_progress_orders)} ออเดอร์กำลังดำเนินการ · ${number(s.checkout_groups)} ครั้งที่สั่งซื้อ (ชุดออเดอร์)`;
+    }catch(err){
+      status.textContent='โหลดรายงานยอดขายไม่ได้: '+(err?.message||'ไม่ทราบสาเหตุ')+' — ตรวจว่าติดตั้ง RPC market_admin_sales_report_v1 แล้ว';
+      metrics.innerHTML='';body.innerHTML='<tr><td colspan="6">รายงานยอดขายยังไม่พร้อม สถิติการใช้งานเว็บไซต์เดิมยังใช้งานได้ตามปกติ</td></tr>';
+    }finally{adminSalesLoading=false;if(refresh)refresh.disabled=false;}
+  }
+
   async function loadAnalyticsDashboard(period=analyticsPeriod){
     if(!db||profile?.role!=='admin')return;
     const allowed=new Set(['today','7d','30d','all']);
@@ -3309,6 +3366,7 @@
     panel.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===view));
     const titles={home:'ศูนย์ควบคุม Admin',shops:'จัดการร้านค้า',reports:'รายงานรีวิว',deletions:'คำขอลบบัญชี',mission:'Mission',coupons:'คูปอง',delivery:'Delivery',riders:'Rider โครงการ',analytics:'สถิติ'};
     const t=$('dashboardTitle');if(t&&profile?.role==='admin')t.textContent=titles[view]||'ศูนย์ควบคุม Admin';
+    if(view==='analytics'){ensureAdminSalesReportUI();loadAdminSalesReport();}
     if(view==='reports')loadAdminReviewReports().catch(()=>{});
     if(view==='deletions')loadAdminDeletionRequests().catch(()=>{});
     panel.scrollIntoView({behavior:'smooth',block:'start'});
