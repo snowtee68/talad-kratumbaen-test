@@ -109,6 +109,34 @@
     return myRiderApplication;
   }
 
+  // KTB-RIDER-CODE-PATCH-V2: optional, read-only identity display. No delivery logic changes.
+  async function ktbShowMyRiderCode(){
+    if(!db||!session||myRiderApplication?.status!=='approved')return;
+    const summary=$('riderApprovedProfileSummary');
+    if(!summary)return;
+    try{
+      const {data,error}=await db.rpc('ktb_my_rider_code');
+      if(error)throw error;
+      if(data&&myRiderApplication?.status==='approved'){
+        summary.querySelector('[data-ktb-rider-code]')?.remove();
+        summary.insertAdjacentHTML('afterbegin',`<div data-ktb-rider-code><span>รหัสประจำตัว Rider</span><b>${esc(data)}</b></div>`);
+      }
+    }catch(err){console.warn('Rider code display unavailable:',err?.message||err);}
+  }
+
+  async function ktbLoadAdminCodes(){
+    const result=new Map();
+    if(!db||profile?.role!=='admin')return result;
+    try{
+      const {data,error}=await db.rpc('ktb_admin_rider_codes');
+      if(error)throw error;
+      (Array.isArray(data)?data:[]).forEach(r=>{
+        if(r.user_id&&r.rider_code)result.set(String(r.user_id),String(r.rider_code));
+      });
+    }catch(err){console.warn('Admin Rider code lookup unavailable:',err?.message||err);}
+    return result;
+  }
+
   function updateRiderJoinButton(){
     const btn=$('riderJoinBtn'),label=$('riderJoinLabel');
     if(!btn||!label)return;
@@ -184,6 +212,7 @@
           <div><span>เบอร์โทร</span><b>${esc(a.phone||'-')}</b></div>
           <div><span>ทะเบียนรถ</span><b>${esc(a.vehicle_plate||'-')}</b></div>
         `;
+        void ktbShowMyRiderCode();
         renderRiderAvailability();
         // R16.1: local sound test controls for approved Rider. No job/order/push is created.
         if(approved&&!approved.querySelector('#riderNativeAudioTestBox')){
@@ -830,10 +859,11 @@
       const {data,error}=await db.rpc('market_admin_rider_applications');
       if(error)throw error;
       const rows=data||[];
+      const ktbAdminCodes=await ktbLoadAdminCodes();
       const pending=rows.filter(x=>x.status==='pending');
       box.innerHTML=rows.length?rows.map(a=>`<div style="padding:12px 0;border-bottom:1px solid #eee">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div><b>${esc(a.display_name||'-')}</b> · <a href="tel:${esc(a.phone||'')}">${esc(a.phone||'-')}</a>
+          <div><b>${esc(a.display_name||'-')}</b>${a.status==='approved'&&ktbAdminCodes.get(String(a.user_id))?`<small class="muted" style="display:block">รหัส Rider: ${esc(ktbAdminCodes.get(String(a.user_id)))}</small>`:''} · <a href="tel:${esc(a.phone||'')}">${esc(a.phone||'-')}</a>
           <small class="muted" style="display:block">พื้นที่: ${esc(a.service_area||'-')} · ทะเบียน: ${esc(a.vehicle_plate||'-')}</small>
           <small class="muted" style="display:block">${riderApplicationStatusText(a.status)} · สมัคร ${a.created_at?new Date(a.created_at).toLocaleString('th-TH'):'-'}</small></div>
           <div>${a.status==='pending'?`<button type="button" class="primary" data-rider-approve="${a.user_id}">✅ อนุมัติ</button> <button type="button" class="danger" data-rider-reject="${a.user_id}">ไม่อนุมัติ</button>`:a.status==='approved'?`<span class="muted">${riderApplicationStatusText(a.status)}</span> <button type="button" class="danger" data-rider-revoke="${a.user_id}">🚫 ยกเลิกการอนุมัติ</button>`:`<span class="muted">${riderApplicationStatusText(a.status)}</span>`}</div>
@@ -900,8 +930,9 @@
       ]);
       if(e1)throw e1;if(e2)throw e2;
       const rows=riders||[];
+      const ktbAdminDirectoryCodes=await ktbLoadAdminCodes();
       if(status)status.textContent=`${rows.length.toLocaleString('th-TH')} คนในทะเบียน`;
-      if(list)list.innerHTML=rows.length?rows.map(r=>{const systemRider=r.source==='rider_profiles';const sourceLabel=systemRider?' · บัญชี Rider ในระบบ':r.source==='admin'?' · Admin เพิ่ม':' · พบจากงาน Delivery';const action=systemRider?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start"><button type="button" class="secondary" data-rider-native-test="${esc(r.id)}" ${r.enabled?'':'disabled'}>🔔 ทดสอบ Native</button><small class="muted" data-rider-native-test-result="${esc(r.id)}">${r.enabled?'ทดสอบ Android App เฉพาะคนนี้':'บัญชี Rider ยังไม่เปิดใช้งาน'}</small></div>`:`<button type="button" class="${r.enabled?'danger':'secondary'}" data-rider-toggle="${r.id}" data-rider-enabled="${r.enabled?'true':'false'}">${r.enabled?'ปิดใช้งาน':'เปิดใช้งาน'}</button>`;return `<div style="display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(125px,1fr) minmax(90px,.7fr) minmax(110px,.8fr) minmax(150px,1.15fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eee"><div><b>${esc(r.display_name||'ไม่ระบุชื่อ')}</b><small class="muted" style="display:block">${r.enabled?'🟢 เปิดใช้งาน':'⚫ ปิดใช้งาน'}${sourceLabel}</small></div><div><a href="tel:${esc(r.phone||'')}">${esc(r.phone||'-')}</a></div><div><b>${Number(r.active_jobs||0)}</b><small class="muted" style="display:block">งานกำลังทำ</small></div><div><b>${Number(r.completed_jobs||0)}</b><small class="muted" style="display:block">ส่งสำเร็จ</small></div>${action}</div>`}).join(''):'<p class="muted">ยังไม่มี Rider ในระบบ</p>';
+      if(list)list.innerHTML=rows.length?rows.map(r=>{const systemRider=r.source==='rider_profiles';const sourceLabel=systemRider?' · บัญชี Rider ในระบบ':r.source==='admin'?' · Admin เพิ่ม':' · พบจากงาน Delivery';const action=systemRider?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start"><button type="button" class="secondary" data-rider-native-test="${esc(r.id)}" ${r.enabled?'':'disabled'}>🔔 ทดสอบ Native</button><small class="muted" data-rider-native-test-result="${esc(r.id)}">${r.enabled?'ทดสอบ Android App เฉพาะคนนี้':'บัญชี Rider ยังไม่เปิดใช้งาน'}</small></div>`:`<button type="button" class="${r.enabled?'danger':'secondary'}" data-rider-toggle="${r.id}" data-rider-enabled="${r.enabled?'true':'false'}">${r.enabled?'ปิดใช้งาน':'เปิดใช้งาน'}</button>`;return `<div style="display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(125px,1fr) minmax(90px,.7fr) minmax(110px,.8fr) minmax(150px,1.15fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eee"><div><b>${esc(r.display_name||'ไม่ระบุชื่อ')}</b>${ktbAdminDirectoryCodes.get(String(r.id||r.user_id||''))?`<small class="muted" style="display:block">รหัส Rider: ${esc(ktbAdminDirectoryCodes.get(String(r.id||r.user_id||'')))}</small>`:''}<small class="muted" style="display:block">${r.enabled?'🟢 เปิดใช้งาน':'⚫ ปิดใช้งาน'}${sourceLabel}</small></div><div><a href="tel:${esc(r.phone||'')}">${esc(r.phone||'-')}</a></div><div><b>${Number(r.active_jobs||0)}</b><small class="muted" style="display:block">งานกำลังทำ</small></div><div><b>${Number(r.completed_jobs||0)}</b><small class="muted" style="display:block">ส่งสำเร็จ</small></div>${action}</div>`}).join(''):'<p class="muted">ยังไม่มี Rider ในระบบ</p>';
       const jr=recent||[];
       // Read-only Admin lookup: display the shop's group_id; keep batch_id unchanged
       // for all Rider operations. Failure here must not block the existing Admin page.
