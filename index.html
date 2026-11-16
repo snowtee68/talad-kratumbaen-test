@@ -548,10 +548,10 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
   </div>
 </div>
 
-<div id="authModal" class="modal hidden"><div class="backdrop" data-close="authModal"></div><div class="modal-card small"><button class="close" data-close="authModal">×</button><h2>เข้าสู่ระบบ / สมัครสมาชิก</h2><p>เลือกเข้าสู่ระบบด้วยอีเมล หรือเบอร์โทรศัพท์</p><form id="authForm"><div class="auth-method-switch"><button type="button" class="auth-method active" data-auth-method="email">📧 อีเมล</button><button type="button" class="auth-method" data-auth-method="phone">📱 เบอร์โทร</button></div><input type="hidden" name="auth_method" value="email"><label id="authEmailLabel">อีเมล<input name="email" type="email" autocomplete="email"></label><label id="authPhoneLabel" class="hidden">เบอร์โทรศัพท์<input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0812345678"></label><div id="authPhoneHelp" class="auth-help hidden">ไม่ใช้ OTP/SMS · ใช้เบอร์โทร + รหัสผ่าน</div><label>ชื่อที่ใช้แสดงในระบบ <small class="muted">(ใช้ตอนสมัครสมาชิก)</small><input name="display_name" type="text" maxlength="50" autocomplete="nickname" placeholder="เช่น พี่นัท / เจ๊ภา / วรวุฒิ"></label><label>รหัสผ่าน<span class="password-field"><input name="password" type="password" minlength="6" required><button type="button" class="password-toggle" data-password-toggle aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">👁️</button></span></label><div id="signupTermsRow" class="auth-help" style="margin:10px 0">
+<div id="authModal" class="modal hidden"><div class="backdrop" data-close="authModal"></div><div class="modal-card small"><button class="close" data-close="authModal">×</button><h2 id="ktbAuthWelcomeTitle">ยินดีต้อนรับสู่กระทุ่มแบนไปด้วยกัน ❤️</h2><p id="ktbAuthWelcomeDetail">เข้าสู่ระบบหรือสมัครสมาชิก เพื่อสั่งสินค้าจากร้านค้าในชุมชนและติดตามสถานะคำสั่งซื้อได้สะดวก</p><form id="authForm"><div class="auth-method-switch"><button type="button" class="auth-method active" data-auth-method="email">📧 อีเมล</button><button type="button" class="auth-method" data-auth-method="phone">📱 เบอร์โทร</button></div><input type="hidden" name="auth_method" value="email"><label id="authEmailLabel">อีเมล<input name="email" type="email" autocomplete="email"></label><label id="authPhoneLabel" class="hidden">เบอร์โทรศัพท์<input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0812345678"></label><div id="authPhoneHelp" class="auth-help hidden">ไม่ใช้ OTP/SMS · ใช้เบอร์โทร + รหัสผ่าน</div><label>ชื่อที่ใช้แสดงในระบบ <small class="muted">(ใช้ตอนสมัครสมาชิก)</small><input name="display_name" type="text" maxlength="50" autocomplete="nickname" placeholder="เช่น พี่นัท / เจ๊ภา / วรวุฒิ"></label><label>รหัสผ่าน<span class="password-field"><input name="password" type="password" minlength="6" required><button type="button" class="password-toggle" data-password-toggle aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">👁️</button></span></label><div id="signupTermsRow" class="auth-help" style="margin:10px 0">
 <label class="check" style="align-items:flex-start"><input id="signupTermsAccepted" type="checkbox" style="margin-top:4px"> <span>สำหรับการสมัครสมาชิก ฉันได้อ่านและยอมรับ <button type="button" id="openTermsBtn" class="text-button" style="display:inline;padding:0">ข้อตกลงและเงื่อนไขการใช้งาน</button></span></label>
 </div>
-<div class="row"><button type="submit" class="primary">เข้าสู่ระบบ</button><button type="button" id="signUpBtn" class="ghost">สมัครสมาชิก</button></div><button type="button" id="forgotPasswordBtn" class="text-button">ลืมรหัสผ่าน</button></form></div></div>
+<div class="row"><button type="submit" class="primary">เข้าสู่ระบบ</button><button type="button" id="signUpBtn" class="ghost">สมัครสมาชิกใหม่</button></div><p class="auth-help" style="font-size:12px;line-height:1.6;margin:12px 0 4px">🔒 ข้อมูลติดต่อและที่อยู่จัดส่งใช้สำหรับดำเนินการคำสั่งซื้อและจัดส่งตาม <a href="privacy.html" target="_blank" rel="noopener noreferrer">นโยบายความเป็นส่วนตัว</a></p><button type="button" id="forgotPasswordBtn" class="text-button">ลืมรหัสผ่าน</button></form></div></div>
 
 <div id="shopModal" class="modal hidden"><div class="backdrop" data-close="shopModal"></div><div class="modal-card"><button class="close" data-close="shopModal">×</button><h2 id="shopFormTitle">เพิ่มร้านของฉัน</h2><p>ข้อมูลจะรอการตรวจสอบก่อนเผยแพร่</p><form id="shopForm"><input type="hidden" name="id"><div class="form-grid">
 <label>ชื่อร้าน *<input name="name" required></label><label>หมวดหมู่ *<select name="category_id" id="categorySelect" required></select></label>
@@ -908,6 +908,17 @@ document.addEventListener('click', function (event) {
   function syncOrderOverlay(){
     const order=document.getElementById('marketOrderModal');
     const loginOpen=!auth.classList.contains('hidden') && !auth.hidden;
+    const title=document.getElementById('ktbAuthWelcomeTitle');
+    const detail=document.getElementById('ktbAuthWelcomeDetail');
+    // If a customer starts login from the order screen, explain why login is required.
+    // The order overlay remains suspended by the existing bridge below.
+    if(loginOpen){
+      const fromOrder=Boolean(order&&!order.classList.contains('hidden'));
+      if(title)title.textContent=fromOrder?'อีกขั้นตอนเดียว ก่อนสั่งซื้อ 🛒':'ยินดีต้อนรับสู่กระทุ่มแบนไปด้วยกัน ❤️';
+      if(detail)detail.textContent=fromOrder
+        ?'เข้าสู่ระบบหรือสมัครสมาชิก เพื่อยืนยันคำสั่งซื้อและติดตามสถานะได้สะดวก'
+        :'เข้าสู่ระบบหรือสมัครสมาชิก เพื่อสั่งสินค้าจากร้านค้าในชุมชนและติดตามสถานะคำสั่งซื้อได้สะดวก';
+    }
     if(loginOpen && order && !order.classList.contains('hidden')){
       if(suspended!==order){
         if(suspended){suspended.style.visibility=previousVisibility;suspended.style.pointerEvents=previousPointerEvents;}
