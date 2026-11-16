@@ -244,6 +244,10 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
   .ktb-facebook-banner-link svg{width:17px;height:17px}
 }
 </style>
+<style id="ktbOrderAuthModalLayerFix">
+/* Keep the login/signup dialog above the dynamically created order dialog. */
+#authModal:not(.hidden){position:fixed!important;z-index:2147483000!important}
+</style>
 </head>
 <body class="guest-session" data-shop-welcome="ยินดีต้อนรับสู่ร้าน…">
 <header class="site-header">
@@ -892,5 +896,36 @@ document.addEventListener('click', function (event) {
 })();
 </script>
 
+<script id="ktbOrderAuthModalLayerBridge">
+/* UI-only: temporarily suspend the order overlay while login/signup is open.
+   Does not close checkout, discard cart state, or change order/auth requests. */
+(function(){
+  const auth=document.getElementById('authModal');
+  if(!auth)return;
+  let suspended=null;
+  let previousVisibility='';
+  let previousPointerEvents='';
+  function syncOrderOverlay(){
+    const order=document.getElementById('marketOrderModal');
+    const loginOpen=!auth.classList.contains('hidden') && !auth.hidden;
+    if(loginOpen && order && !order.classList.contains('hidden')){
+      if(suspended!==order){
+        if(suspended){suspended.style.visibility=previousVisibility;suspended.style.pointerEvents=previousPointerEvents;}
+        suspended=order;
+        previousVisibility=order.style.visibility;
+        previousPointerEvents=order.style.pointerEvents;
+      }
+      order.style.visibility='hidden';
+      order.style.pointerEvents='none';
+    }else if(suspended){
+      suspended.style.visibility=previousVisibility;
+      suspended.style.pointerEvents=previousPointerEvents;
+      suspended=null;
+    }
+  }
+  new MutationObserver(syncOrderOverlay).observe(auth,{attributes:true,attributeFilter:['class','hidden','style']});
+  syncOrderOverlay();
+})();
+</script>
 </body>
 </html>
