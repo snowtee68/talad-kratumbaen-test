@@ -4,6 +4,19 @@ const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 let entries=[], page=0, loading=false;
 const perPage=()=>matchMedia('(min-width:760px)').matches?30:20;
 function thNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));}
+// Stable daily rotation (Thailand calendar date): all visitors see the same order
+// for the day. Hash per shop ID so an opening/closing shop does not reshuffle others.
+function thaiDayKey(){const d=thNow();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function dailyShopRank(day,id){
+ let h=2166136261;
+ for(const ch of `${day}|${id}`){h=Math.imul(h^ch.charCodeAt(0),16777619);}
+ h^=h>>>16;h=Math.imul(h,0x85ebca6b);h^=h>>>13;h=Math.imul(h,0xc2b2ae35);h^=h>>>16;
+ return h>>>0;
+}
+function sortDailyRotation(shops){
+ const day=thaiDayKey();
+ return shops.sort((a,b)=>dailyShopRank(day,String(a.id))-dailyShopRank(day,String(b.id))||String(a.id).localeCompare(String(b.id)));
+}
 function within(a,b,now){if(!a||!b||a===b)return true;const m=v=>{const x=String(v).slice(0,5).split(':').map(Number);return x[0]*60+x[1];};const x=m(a),y=m(b);return x<y?(now>=x&&now<y):(now>=x||now<y);}
 function available(s,cfg){if(!s||s.status!=='approved'||s.temporarily_closed||!cfg?.enabled||!cfg.payment_qr_url||(cfg.accepting_status||'open')!=='open')return false;
  const th=thNow(),minutes=th.getHours()*60+th.getMinutes();
@@ -18,7 +31,7 @@ async function load(){if(loading)return;loading=true;$('ktbDeliveryMessage').tex
  for(const r of [global,shop,settings,access,products])if(r.error)throw r.error;
  const flag=Array.isArray(global.data)?global.data[0]:global.data;if(flag?.delivery_enabled===false){entries=[];gridPage();$('ktbDeliveryMessage').textContent='ระบบ Delivery ปิดให้บริการชั่วคราว';return;}
  const allowed=new Set(access.data.map(r=>String(r.shop_id))),productIds=new Set(products.data.map(r=>String(r.shop_id))),map=new Map(settings.data.map(r=>[String(r.shop_id),r]));
- entries=shop.data.filter(s=>allowed.has(String(s.id))&&productIds.has(String(s.id))&&available(s,map.get(String(s.id)))).sort((a,b)=>String(a.name).localeCompare(String(b.name),'th'));gridPage();
+ entries=sortDailyRotation(shop.data.filter(s=>allowed.has(String(s.id))&&productIds.has(String(s.id))&&available(s,map.get(String(s.id)))));gridPage();
  }catch(e){entries=[];gridPage();$('ktbDeliveryMessage').textContent='ไม่สามารถตรวจสอบสถานะร้านได้ กรุณาลองใหม่อีกครั้ง';console.warn('Delivery catalog:',e);}finally{loading=false;}}
 function close(){document.body.classList.remove('ktb-delivery-mode');history.replaceState(null,'',location.pathname+location.search);window.scrollTo({top:0});}
 function open(){document.body.classList.add('ktb-delivery-mode');if(location.hash!=='#delivery-now')history.replaceState(null,'','#delivery-now');page=0;window.scrollTo({top:0});load();}
