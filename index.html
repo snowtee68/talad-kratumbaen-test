@@ -486,6 +486,22 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
     <section class="admin-mission-reward" aria-label="ความเป็นส่วนตัวและการจัดการบัญชี">
       <div class="section-head"><div><span class="eyebrow red">ความเป็นส่วนตัว</span><h3>🔐 ข้อมูลและบัญชีของฉัน</h3></div></div>
       <p class="muted">อ่านวิธีที่ระบบใช้ข้อมูลส่วนบุคคล หรือส่งคำขอลบบัญชีจากบัญชีที่กำลังเข้าสู่ระบบอยู่ได้ที่นี่ ระบบอ้างอิงจาก User ID จึงใช้ได้ทั้งบัญชีที่สมัครด้วยอีเมลและเบอร์โทร</p>
+      <details class="account-password-settings" style="margin:12px 0 18px;border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fff">
+        <summary style="cursor:pointer;font-weight:800;color:#991b1b">🔑 เปลี่ยนรหัสผ่านของฉัน</summary>
+        <p class="muted" style="font-size:13px;margin:12px 0">สำหรับผู้ที่เข้าสู่ระบบแล้ว กรุณายืนยันรหัสผ่านปัจจุบันก่อนตั้งรหัสใหม่ (ใช้ได้ทั้งบัญชีอีเมลและเบอร์โทร)</p>
+        <form id="changePasswordForm" autocomplete="off">
+          <label>รหัสผ่านปัจจุบัน
+            <input type="password" name="current_password" autocomplete="current-password" required>
+          </label>
+          <label>รหัสผ่านใหม่ <small class="muted">(อย่างน้อย 12 ตัวอักษร)</small>
+            <input type="password" name="new_password" autocomplete="new-password" minlength="12" required>
+          </label>
+          <label>ยืนยันรหัสผ่านใหม่
+            <input type="password" name="confirm_password" autocomplete="new-password" minlength="12" required>
+          </label>
+          <button type="submit" class="primary" style="margin-top:12px">เปลี่ยนรหัสผ่าน</button>
+        </form>
+      </details>
       <div id="accountDeletionStatus" class="muted" style="margin:8px 0 12px">ยังไม่มีคำขอลบบัญชี</div>
       <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
         <a href="privacy.html" class="secondary" style="text-decoration:none">📄 นโยบายความเป็นส่วนตัว</a>
@@ -702,7 +718,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=ktb-recovery-modal-20261120"></script>
+<script src="app.js?v=ktb-account-password-change-20261120"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">

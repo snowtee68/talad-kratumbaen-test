@@ -3929,6 +3929,49 @@
       }catch(err){alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err.message));}
       finally{btn.disabled=false;btn.textContent='บันทึกรหัสผ่านใหม่';}
     });
+    // Account owner password change: verify the existing password without
+    // mutating the application's shared Supabase session.
+    $('changePasswordForm')?.addEventListener('submit',async ev=>{
+      ev.preventDefault();
+      if(!db||!session?.user?.id)return alert('กรุณาเข้าสู่ระบบก่อนเปลี่ยนรหัสผ่าน');
+      const form=ev.currentTarget;
+      const current=String(form.elements.current_password.value||'');
+      const next=String(form.elements.new_password.value||'');
+      const confirmNext=String(form.elements.confirm_password.value||'');
+      if(!current||!next||!confirmNext)return alert('กรุณากรอกรหัสผ่านทั้งสามช่อง');
+      if(next.length<12)return alert('รหัสผ่านใหม่ต้องมีอย่างน้อย 12 ตัวอักษร');
+      if(next!==confirmNext)return alert('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
+      if(next===current)return alert('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน');
+      const userId=session.user.id;
+      const loginEmail=String(session.user.email||'').trim();
+      if(!loginEmail)return alert('ไม่พบข้อมูลบัญชีสำหรับยืนยันรหัสผ่าน');
+      const button=form.querySelector('button[type=submit]');
+      button.disabled=true;button.textContent='กำลังเปลี่ยนรหัสผ่าน...';
+      try{
+        const checkClient=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{
+          auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+          global:{headers:{'X-Client-Info':'ktb-password-verification'}}
+        });
+        const {data:verified,error:verifyError}=await checkClient.auth.signInWithPassword({
+          email:loginEmail,password:current
+        });
+        if(verifyError||verified?.user?.id!==userId){
+          throw new Error('รหัสผ่านปัจจุบันไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        }
+        const {data:live,error:sessionError}=await db.auth.getSession();
+        if(sessionError||live?.session?.user?.id!==userId){
+          throw new Error('เซสชันเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่');
+        }
+        const {error:updateError}=await db.auth.updateUser({password:next});
+        if(updateError)throw updateError;
+        form.reset();
+        alert('เปลี่ยนรหัสผ่านสำเร็จ กรุณาใช้รหัสผ่านใหม่ในการเข้าสู่ระบบครั้งต่อไป');
+      }catch(err){
+        alert('เปลี่ยนรหัสผ่านไม่สำเร็จ: '+friendlyAuthError(err?.message));
+      }finally{
+        button.disabled=false;button.textContent='เปลี่ยนรหัสผ่าน';
+      }
+    });
     $('requestAccountDeletionBtn')?.addEventListener('click',submitAccountDeletionRequest);
     $('cancelAccountDeletionBtn')?.addEventListener('click',cancelAccountDeletionRequest);
     $('signOutBtn').addEventListener('click',async()=>{
