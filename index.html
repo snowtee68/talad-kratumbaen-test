@@ -248,6 +248,10 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 /* Keep the login/signup dialog above the dynamically created order dialog. */
 #authModal:not(.hidden){position:fixed!important;z-index:2147483000!important}
 </style>
+<style id="ktbRecoveryModalLayerFix">
+/* Password recovery always takes priority over the regular login and order panels. */
+#resetPasswordModal:not(.hidden){position:fixed!important;z-index:2147483100!important}
+</style>
 
 <style id="ktbShopOrderCta20261119">
 /* V2: single-column primary CTA. The actual order button is still owned by order.js. */
@@ -698,7 +702,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=ktb-production-shop-management-r1-20261029"></script>
+<script src="app.js?v=ktb-recovery-modal-20261120"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">

@@ -3744,9 +3744,15 @@
     return hash.get('type')==='recovery'||query.get('type')==='recovery'||query.has('code');
   }
 
+  // Recovery callback must be handled before the slower storefront data requests.
+  // Otherwise a failed/slow shop query can prevent the password form appearing.
+  let passwordRecoveryInProgress=isRecoveryLink();
   async function handleRecoveryLink(){
-    if(!db||!isRecoveryLink())return;
-    await new Promise(resolve=>setTimeout(resolve,150));
+    if(!db||!passwordRecoveryInProgress)return;
+    // Do not leave an unrelated login/order dialog on top of password recovery.
+    document.querySelectorAll('.modal:not(.hidden)').forEach(modal=>{
+      if(modal.id!=='resetPasswordModal')closeModal(modal.id);
+    });
     openModal('resetPasswordModal');
   }
 
@@ -3908,6 +3914,11 @@
       if(password!==confirm)return alert('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
       const btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='กำลังบันทึก...';
       try{
+        // Never update an unrelated signed-in user's password without a recovery link.
+        if(!passwordRecoveryInProgress)throw new Error('กรุณาเปิดลิงก์ตั้งรหัสผ่านใหม่จากอีเมลอีกครั้ง');
+        const {data:recoverySession,error:sessionError}=await db.auth.getSession();
+        if(sessionError)throw sessionError;
+        if(!recoverySession?.session)throw new Error('ลิงก์ยังไม่ยืนยันหรือหมดอายุ กรุณาขอลิงก์ใหม่ แล้วเปิดผ่าน Chrome');
         const {error}=await db.auth.updateUser({password});
         if(error)throw error;
         alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
@@ -4102,15 +4113,21 @@
       }
     });
     if(db)db.auth.onAuthStateChange((event)=>{
-      if(event==='PASSWORD_RECOVERY')setTimeout(()=>openModal('resetPasswordModal'),0);
-      setTimeout(refreshAuth,0);
+      if(event==='PASSWORD_RECOVERY'){
+        passwordRecoveryInProgress=true;
+        setTimeout(()=>{void handleRecoveryLink();},0);
+      }
+      // Avoid refreshing the whole storefront during password recovery.
+      if(!passwordRecoveryInProgress)setTimeout(refreshAuth,0);
     });
   }
 
   async function start(){
     renderHoursEditor();initMaps();bindEvents();
+    // Show password reset immediately; do not wait for all marketplace queries.
+    if(passwordRecoveryInProgress)void handleRecoveryLink();
     trackAnalytics('page_view');
-    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();await handleRecoveryLink();await handleShopDirectLink();showMissionWelcomeOncePerRound().catch(()=>{});}
+    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();if(!passwordRecoveryInProgress){await handleShopDirectLink();showMissionWelcomeOncePerRound().catch(()=>{});}}
     catch(err){console.error(err);showNotice('เกิดข้อผิดพลาด: '+err.message,true);}
     finally{document.documentElement.classList.remove('shop-link-pending');}
   }
