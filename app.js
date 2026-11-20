@@ -3939,7 +3939,7 @@
       const next=String(form.elements.new_password.value||'');
       const confirmNext=String(form.elements.confirm_password.value||'');
       if(!current||!next||!confirmNext)return alert('กรุณากรอกรหัสผ่านทั้งสามช่อง');
-      if(next.length<12)return alert('รหัสผ่านใหม่ต้องมีอย่างน้อย 12 ตัวอักษร');
+      if(next.length<6)return alert('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
       if(next!==confirmNext)return alert('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
       if(next===current)return alert('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน');
       const userId=session.user.id;
