@@ -3047,7 +3047,7 @@
     renderShops(); renderRecommended();
     if(session){
       await loadDashboard();
-      if(isSellerDashboardMode())setTimeout(()=>$('dashboard')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
+      // Dedicated seller page starts at the top; dashboard is no longer below the storefront.
       await ensureNativePushRegistration({force:false,requestPermission:false});
     }
   }
@@ -3764,6 +3764,7 @@
   }
 
   function goHome(){
+    if(isSellerDashboardMode())return window.location.assign(window.location.pathname);
     document.querySelectorAll('.modal:not(.hidden)').forEach(modal=>closeModal(modal.id));
     history.replaceState(null,'',window.location.pathname+window.location.search);
     window.scrollTo({top:0,behavior:'smooth'});
@@ -3771,6 +3772,7 @@
 
   function goBack(){
     if(closeVisibleModal())return;
+    if(isSellerDashboardMode())return window.location.assign(window.location.pathname);
     if(window.scrollY>160){
       window.scrollTo({top:0,behavior:'smooth'});
       return;
@@ -3802,8 +3804,13 @@
     document.querySelectorAll('[data-analytics-period]').forEach(btn=>btn.addEventListener('click',()=>loadAnalyticsDashboard(btn.dataset.analyticsPeriod||'7d')));
     $('accountBtn').addEventListener('click',()=>{
       if(!session)return openModal('authModal');
-      $('dashboard').scrollIntoView({behavior:'smooth'});
+      const page=new URL(window.location.href);
+      page.search='?seller_dashboard=1';
+      page.hash='';
+      window.location.assign(page.href);
     });
+    $('sellerPageBackBtn')?.addEventListener('click',()=>window.location.assign(window.location.pathname));
+    $('sellerPageLoginBtn')?.addEventListener('click',()=>openModal('authModal'));
     $('headerUserName')?.addEventListener('click',()=>{if(session)openProfileNameEditor();});
     $('headerUserName')?.addEventListener('keydown',ev=>{if(session&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();openProfileNameEditor();}});
     $('guestSignUpBtn')?.addEventListener('click',()=>{setAuthMethod('email');openModal('authModal');setTimeout(()=>document.querySelector('#authModal input[name="email"]')?.focus(),60);});
@@ -3980,6 +3987,7 @@
       const {error}=await db.auth.signOut();
       if(error)return alert('ออกจากระบบไม่สำเร็จ: '+friendlyAuthError(error.message));
       session=null;profile=null;accountDeletionRequest=null;updateAccountUI();applyAdminCenterMode();renderAccountDeletionStatus();
+      if(isSellerDashboardMode()){window.location.replace(window.location.pathname);return;}
       await loadPublicShops({reset:true});
       window.scrollTo({top:0,behavior:'smooth'});
     });
@@ -4170,7 +4178,7 @@
     // Show password reset immediately; do not wait for all marketplace queries.
     if(passwordRecoveryInProgress)void handleRecoveryLink();
     trackAnalytics('page_view');
-    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();if(!passwordRecoveryInProgress){await handleShopDirectLink();showMissionWelcomeOncePerRound().catch(()=>{});}}
+    try{await loadCategories();await loadReviewStats();await loadPromotions();await loadShopIndex();await loadPublicShops({reset:true});renderShops();renderRecommended();await refreshAuth();ensureCouponWalletUI();if(!passwordRecoveryInProgress){if(isSellerDashboardMode()&&!session)openModal('authModal');if(!isSellerDashboardMode()){await handleShopDirectLink();showMissionWelcomeOncePerRound().catch(()=>{});}}}
     catch(err){console.error(err);showNotice('เกิดข้อผิดพลาด: '+err.message,true);}
     finally{document.documentElement.classList.remove('shop-link-pending');}
   }

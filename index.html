@@ -2,6 +2,32 @@
 <html lang="th">
 <script src="./native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
 <head>
+<script>
+try {
+  if(new URLSearchParams(location.search).get('seller_dashboard')==='1'){
+    document.documentElement.classList.add('seller-dashboard-route');
+  }
+}catch(_e){}
+</script>
+<style id="ktbSellerPageStyles">
+/* Keep existing dashboard DOM, but render it as a separate view, never below the storefront. */
+html:not(.seller-dashboard-route) body:not(.admin-center-mode) #dashboard{display:none!important}
+html.seller-dashboard-route body{background:#f8f7f6}
+html.seller-dashboard-route .site-header,
+html.seller-dashboard-route main > :not(#dashboard):not(#sellerDashboardNav),
+html.seller-dashboard-route footer,
+html.seller-dashboard-route .floating-navigation,
+html.seller-dashboard-route .unified-app-dock{display:none!important}
+html.seller-dashboard-route main{min-height:100vh;padding:0 0 32px!important}
+html.seller-dashboard-route #sellerDashboardNav{display:block!important;max-width:1120px;margin:0 auto;padding:16px 16px 2px}
+html.seller-dashboard-route #sellerDashboardNav .seller-page-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+html.seller-dashboard-route #sellerDashboardNav .seller-page-toolbar h1{font:800 clamp(21px,5vw,30px)/1.35 Prompt,sans-serif;margin:0;color:#8d1720}
+html.seller-dashboard-route #dashboard{display:block;max-width:1120px;margin:0 auto;padding:12px 16px 44px}
+html.seller-dashboard-route #dashboard.hidden{display:none!important}
+html.seller-dashboard-route #sellerDashboardNav button{min-height:42px}
+html.seller-dashboard-route #sellerDashboardNav .seller-page-guest{display:none}
+html.seller-dashboard-route body.guest-session #sellerDashboardNav .seller-page-guest{display:block;margin-top:18px}
+</style>
 <style>
 /* Shared-shop deep links: prevent displaying the homepage while the selected shop loads. */
 html.shop-link-pending body::before{content:'';position:fixed;inset:0;background:#fff;z-index:2147483645;}
@@ -473,6 +499,16 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
 
   <section class="map-section"><div class="container"><div class="map-heading"><div class="map-heading-copy"><span class="eyebrow">แผนที่ร้านค้า</span><h2>กดหมุดเพื่อดูรายละเอียดร้าน</h2><div class="map-published-count" aria-live="polite"><span>ร้านค้าที่เผยแพร่แล้ว</span><strong id="shopCount">0</strong><small>ร้านค้า</small></div><small id="mapResultCount" class="map-result-count"></small></div><button id="locateMapBtn" class="map-location-button" type="button">🔵 ตำแหน่งของฉัน</button></div><div id="mapFilterBar" class="map-filter-bar" aria-label="ตัวกรองหมุดร้านค้า"></div><div class="map-legend"><span><i class="legend-dot red"></i> ร้านทั่วไป</span><span><i class="legend-dot gold"></i> ร้านแนะนำ</span><span><i class="legend-dot promo"></i> มีโปรโมชั่น</span><span><i class="legend-dot blue"></i> ตำแหน่งของคุณ</span></div><div id="map"></div><p class="map-help">จุดสีน้ำเงินคือตำแหน่งปัจจุบันของคุณ การแสดงผลต้องได้รับอนุญาต Location จากอุปกรณ์</p></div></section>
 
+  <section id="sellerDashboardNav" class="hidden">
+    <div class="seller-page-toolbar">
+      <button id="sellerPageBackBtn" type="button" class="secondary">← กลับหน้าหลัก</button>
+      <h1>🏪 ร้านของฉัน</h1>
+    </div>
+    <div class="seller-page-guest">
+      <p>กรุณาเข้าสู่ระบบเพื่อดูและจัดการร้านของคุณ</p>
+      <button id="sellerPageLoginBtn" class="primary" type="button">เข้าสู่ระบบ</button>
+    </div>
+  </section>
   <section id="dashboard" class="container section hidden">
     <div class="section-head"><div><span class="eyebrow red">บัญชีของฉัน</span><h2 id="dashboardTitle">ร้านของฉัน</h2></div><button id="signOutBtn" class="danger">ออกจากระบบ</button></div>
     <section id="profileDisplayNameCard" class="admin-mission-reward profile-display-name-card">
@@ -718,7 +754,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=ktb-password-6-eye-20261121"></script>
+<script src="app.js?v=ktb-seller-separate-page-20261121"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">
@@ -743,7 +779,11 @@ if ('serviceWorker' in navigator) {
 document.addEventListener('click', function (event) {
   const home = event.target.closest('[data-dock-action="home"]');
   if (home) {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if(new URLSearchParams(location.search).get('seller_dashboard')==='1'){
+      window.location.assign(window.location.pathname);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     return;
   }
   const proxy = event.target.closest('[data-dock-target]');
