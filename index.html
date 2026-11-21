@@ -25,6 +25,7 @@ html.seller-dashboard-route #sellerDashboardNav .seller-page-toolbar h1{font:800
 html.seller-dashboard-route #dashboard{display:block;max-width:1120px;margin:0 auto;padding:12px 16px 44px}
 html.seller-dashboard-route #dashboard.hidden{display:none!important}
 html.seller-dashboard-route #sellerDashboardNav button{min-height:42px}
+html.seller-dashboard-route #sellerPageAdminBtn.hidden{display:none!important} 
 html.seller-dashboard-route #sellerDashboardNav .seller-page-guest{display:none}
 html.seller-dashboard-route body.guest-session #sellerDashboardNav .seller-page-guest{display:block;margin-top:18px}
 </style>
@@ -503,6 +504,7 @@ body:not(.guest-session) .site-header #guestSignUpBtn{display:none!important}
     <div class="seller-page-toolbar">
       <button id="sellerPageBackBtn" type="button" class="secondary">← กลับหน้าหลัก</button>
       <h1>🏪 ร้านของฉัน</h1>
+      <a id="sellerPageAdminBtn" href="?admin_center=1" class="primary hidden" style="text-decoration:none;min-height:42px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px">🛡️ ศูนย์ควบคุม Admin</a>
     </div>
     <div class="seller-page-guest">
       <p>กรุณาเข้าสู่ระบบเพื่อดูและจัดการร้านของคุณ</p>
@@ -754,7 +756,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="native-push-bridge.js?v=0.5.22.147-R8.1-native-push-hardening"></script>
-<script src="app.js?v=ktb-seller-separate-page-20261121"></script>
+<script src="app.js?v=ktb-admin-entry-restored-20261121"></script>
 
 <nav class="unified-app-dock" aria-label="เมนูหลัก">
   <button type="button" data-dock-action="home" aria-label="หน้าหลัก">

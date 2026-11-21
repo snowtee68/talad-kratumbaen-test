@@ -3172,6 +3172,8 @@
 
   function updateAccountUI(){
     document.body.classList.toggle('guest-session',!session);
+    // Restore the Admin Center entry on the separate seller page (role-gated).
+    $('sellerPageAdminBtn')?.classList.toggle('hidden',!session||profile?.role!=='admin');
     const accountBtn=$('accountBtn');
     const headerUserName=$('headerUserName');
     if(accountBtn){
